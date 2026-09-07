@@ -1,0 +1,36 @@
+param(
+    [string]$Version = "1.0.0"
+)
+
+$ErrorActionPreference = "Stop"
+$projectRoot = $PSScriptRoot
+$artifactRoot = Join-Path $projectRoot "artifacts"
+$installerPublish = Join-Path $artifactRoot "installer"
+$portablePublish = Join-Path $artifactRoot "portable"
+$portableZip = Join-Path $artifactRoot "DesktopBoxes-portable-win-x64-$Version.zip"
+$project = Join-Path $projectRoot "src\DesktopBoxes.App\DesktopBoxes.App.csproj"
+
+$artifactRootFull = [IO.Path]::GetFullPath($artifactRoot).TrimEnd([IO.Path]::DirectorySeparatorChar)
+foreach ($target in @($installerPublish, $portablePublish)) {
+    $targetFull = [IO.Path]::GetFullPath($target)
+    if (-not $targetFull.StartsWith($artifactRootFull + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to clean a path outside the artifacts directory: $targetFull"
+    }
+    if (Test-Path -LiteralPath $targetFull) {
+        Remove-Item -LiteralPath $targetFull -Recurse -Force
+    }
+}
+
+dotnet publish $project -c Release -p:RestoreLockedMode=true -p:DebugType=None -p:DebugSymbols=false -p:Version=$Version -o $installerPublish
+if ($LASTEXITCODE -ne 0) { throw "Publish failed." }
+
+Copy-Item -LiteralPath $installerPublish -Destination $portablePublish -Recurse -Force
+New-Item -ItemType File -Path (Join-Path $portablePublish "portable") -Force | Out-Null
+
+if (Test-Path -LiteralPath $portableZip) {
+    Remove-Item -LiteralPath $portableZip -Force
+}
+Compress-Archive -Path (Join-Path $portablePublish "*") -DestinationPath $portableZip -CompressionLevel Optimal
+
+Write-Host "Installer input: $installerPublish"
+Write-Host "Portable package: $portableZip"

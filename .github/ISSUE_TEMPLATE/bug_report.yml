@@ -1,0 +1,42 @@
+name: Bug report
+description: 报告可复现的问题
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 感谢反馈。安全漏洞请使用仓库的私密漏洞报告入口，不要提交公开 Issue。
+  - type: input
+    id: version
+    attributes:
+      label: DesktopBoxes 版本
+      placeholder: 例如 1.1.0
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows 版本与显示设置
+      placeholder: 例如 Windows 11 24H2，双显示器，缩放 150% / 100%
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      placeholder: 请按顺序描述操作步骤
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为及日志
+      description: 日志默认位于 %AppData%\DesktopBoxes。请先移除个人路径和敏感信息。
+    validations:
+      required: true

@@ -1,0 +1,24 @@
+# .NET build output
+**/bin/
+**/obj/
+publish/
+artifacts/
+
+# IDE/user state
+.vs/
+.vscode/
+*.user
+*.suo
+
+# Release artifacts and debug symbols
+*.zip
+*.exe
+*.pdb
+
+# Local design/reference exports (not used by the application)
+pic/
+
+# Runtime data/logs
+data/
+portable
+*.log

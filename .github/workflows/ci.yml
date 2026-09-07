@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Restore
+        run: dotnet restore DesktopBoxes.sln --locked-mode
+
+      - name: Verify formatting
+        run: dotnet format DesktopBoxes.sln --no-restore --verify-no-changes --verbosity minimal
+
+      - name: Build
+        run: dotnet build DesktopBoxes.sln -c Release --no-restore --verbosity minimal
+
+      - name: Test
+        run: dotnet test DesktopBoxes.sln -c Release --no-build --no-restore --verbosity minimal

@@ -1,0 +1,55 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 8.0.x
+          cache: true
+          cache-dependency-path: "**/packages.lock.json"
+
+      - name: Restore
+        run: dotnet restore DesktopBoxes.sln --locked-mode
+
+      - name: Test
+        run: dotnet test DesktopBoxes.sln -c Release --no-restore --verbosity minimal
+
+      - name: Build release artifacts
+        id: package
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart("v")
+          .\build-release.ps1 -Version $version
+          Copy-Item `
+            -LiteralPath ".\artifacts\installer\DesktopBoxes.App.exe" `
+            -Destination ".\artifacts\DesktopBoxes-win-x64-$version.exe"
+          "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = "${{ steps.package.outputs.version }}"
+          gh release create "${{ github.ref_name }}" `
+            ".\artifacts\DesktopBoxes-win-x64-$version.exe" `
+            ".\artifacts\DesktopBoxes-portable-win-x64-$version.zip" `
+            --verify-tag `
+            --generate-notes `
+            --title "DesktopBoxes $version"
