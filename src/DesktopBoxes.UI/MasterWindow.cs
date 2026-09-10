@@ -25,7 +25,8 @@ public class MasterWindow : Window
     private readonly HashSet<BoxWindow> _subscriptions = new();
 
     public MasterWindow(IReadOnlyList<BoxWindow> windows, string dataDir, Action onChanged,
-        Action onNewBox, Action<BoxWindow> onDeleteBox, Func<bool> isExiting)
+        Action onNewBox, Action<BoxWindow> onDeleteBox, Func<bool> isAutoStartEnabled,
+        Action<bool> setAutoStart, Func<bool> isExiting)
     {
         _windows = windows;
         _dataDir = dataDir;
@@ -57,6 +58,32 @@ public class MasterWindow : Window
         DockPanel.SetDock(brand, Dock.Top);
         rail.Children.Add(brand);
         var railBottom = new StackPanel();
+        railBottom.Children.Add(UiTheme.Text("应用设置", 12, UiTheme.Brush("#E4E7F0")));
+        var autoStart = new CheckBox
+        {
+            Content = "开机自动启动",
+            IsChecked = isAutoStartEnabled(),
+            Foreground = Brushes.White,
+            Margin = new Thickness(0, 12, 0, 24),
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Cursor = System.Windows.Input.Cursors.Hand,
+            ToolTip = "登录 Windows 后自动启动桌面盒子",
+        };
+        System.Windows.Automation.AutomationProperties.SetName(autoStart, "开机自动启动");
+        autoStart.Click += (_, _) =>
+        {
+            bool enabled = autoStart.IsChecked == true;
+            try
+            {
+                setAutoStart(enabled);
+            }
+            catch (Exception ex)
+            {
+                autoStart.IsChecked = !enabled;
+                MessageBox.Show($"开机自启设置失败：{ex.Message}", "桌面盒子", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        };
+        railBottom.Children.Add(autoStart);
         railBottom.Children.Add(UiTheme.Text("使用小提示", 12, UiTheme.Brush("#E4E7F0")));
         var tips = UiTheme.Text("拖入文件即可收纳\n双击图标打开\n拖动标题栏调整位置", 12, UiTheme.Brush("#AEB8D0"));
         tips.LineHeight = 23;
@@ -217,7 +244,7 @@ public class MasterWindow : Window
         _details.Children.Add(UiTheme.Text("盒子预览", 11, UiTheme.Muted));
         _details.Children.Add(new Viewbox
         {
-            Child = new BoxPreview(window.Box, _dataDir, window.IsEmbedded) { Width = 320 },
+            Child = new BoxPreview(window.Box, _dataDir) { Width = 320 },
             Height = 135,
             Stretch = Stretch.Uniform,
             StretchDirection = StretchDirection.DownOnly,
@@ -268,7 +295,7 @@ public class MasterWindow : Window
 
     private void ShowAppearance(BoxWindow window)
     {
-        var dialog = new AppearanceDialog(window.Box, _dataDir, !window.IsEmbedded) { Owner = this };
+        var dialog = new AppearanceDialog(window.Box, _dataDir, true) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         window.RefreshAppearance();
         RefreshList();
@@ -280,7 +307,7 @@ public class MasterWindow : Window
         if (_windows.Count == 0) return;
         var template = new Box { Name = "统一外观预览", Items = _windows[0].Box.Items };
         CopyAppearance(_windows[0].Box, template);
-        var dialog = new AppearanceDialog(template, _dataDir, _windows.All(w => !w.IsEmbedded)) { Owner = this };
+        var dialog = new AppearanceDialog(template, _dataDir, true) { Owner = this };
         if (dialog.ShowDialog() != true) return;
         foreach (var window in _windows) { CopyAppearance(template, window.Box); window.RefreshAppearance(); }
         RefreshList();

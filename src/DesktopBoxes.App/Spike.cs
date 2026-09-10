@@ -145,8 +145,9 @@ public static class Spike
 
         try
         {
-            var box = new Box { Name = "WinD测试", X = 200, Y = 200, Width = 280, Height = 200 };
-            using var w = new BoxWindow(box, Path.GetTempPath());
+            IntPtr desktopParent = DesktopAttacher.GetDesktopParent();
+            var box = new Box { Name = "WinD与透明度测试", X = 200, Y = 200, Width = 280, Height = 200 };
+            using var w = new BoxWindow(box, Path.GetTempPath(), desktopParent);
 
             var plain = new Window
             {
@@ -161,6 +162,7 @@ public static class Spike
             var plainHwnd = new WindowInteropHelper(plain).Handle;
 
             Log($"box=0x{w.Handle.ToInt64():X} plain=0x{plainHwnd.ToInt64():X}");
+            Log($"desktopParent=0x{desktopParent.ToInt64():X} actualOwner=0x{DesktopAttacher.GetParentOf(w.Handle).ToInt64():X} attached={w.IsDesktopAttached}");
             Log($"before: box.IsIconic={IsIconic(w.Handle)} plain.IsIconic={IsIconic(plainHwnd)}");
 
             var t = Type.GetTypeFromProgID("Shell.Application")!;

@@ -60,6 +60,7 @@ public partial class App : System.Windows.Application
         _dataDir = DataDirectory.GetDefaultDirectory();
         SetupErrorHandling();
         _dataDir = DataDirectory.Resolve();
+        CleanupDesktopExports();
         _store = new BoxStore(_dataDir);
         var boxes = _store.Load();
         try
@@ -333,15 +334,6 @@ public partial class App : System.Windows.Application
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("打开总控", null, (_, _) => ShowMaster());
         menu.Items.Add("新建盒子", null, (_, _) => OnNewBoxRequested());
-
-        var autoStart = new System.Windows.Forms.ToolStripMenuItem("开机自启")
-        {
-            CheckOnClick = true,
-            Checked = IsAutoStartEnabled(),
-        };
-        autoStart.CheckedChanged += (_, _) => SetAutoStart(autoStart.Checked);
-        menu.Items.Add(autoStart);
-
         menu.Items.Add("数据存储位置…", null, (_, _) => ChangeDataDirectory());
 
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
@@ -367,6 +359,8 @@ public partial class App : System.Windows.Application
             onChanged: Save,
             onNewBox: OnNewBoxRequested,
             onDeleteBox: OnDeleteRequested,
+            isAutoStartEnabled: IsAutoStartEnabled,
+            setAutoStart: SetAutoStart,
             isExiting: () => _exiting);
         _master.Show();
     }
@@ -592,6 +586,27 @@ public partial class App : System.Windows.Application
         AppDomain.CurrentDomain.ProcessExit += (_, _) => ExportBoxesForExit("process-exit");
     }
 
+    private void CleanupDesktopExports()
+    {
+        try
+        {
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrWhiteSpace(desktop)) throw new DirectoryNotFoundException("无法确定桌面文件夹位置。");
+
+            CleanupResult result = BoxExitExporter.Cleanup(desktop, _dataDir);
+            if (result.Errors.Count > 0)
+            {
+                LogError(
+                    "startup-export-cleanup",
+                    new IOException($"启动清理有 {result.Errors.Count} 个项目未完成：{Environment.NewLine}{string.Join(Environment.NewLine, result.Errors)}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            LogError("startup-export-cleanup", ex);
+        }
+    }
+
     private void ExportBoxesForExit(string reason, IReadOnlyList<Box>? currentBoxes = null)
     {
         if (System.Threading.Interlocked.Exchange(ref _exitExportStarted, 1) != 0 || _store == null) return;
@@ -602,7 +617,7 @@ public partial class App : System.Windows.Application
             string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
             if (string.IsNullOrWhiteSpace(desktop)) throw new DirectoryNotFoundException("无法确定桌面文件夹位置。");
 
-            ExportResult result = BoxExitExporter.Export(desktop, boxes);
+            ExportResult result = BoxExitExporter.Export(desktop, _dataDir, boxes);
             if (result.Errors.Count > 0)
             {
                 LogError(

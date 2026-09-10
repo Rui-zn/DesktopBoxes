@@ -10,7 +10,7 @@ namespace DesktopBoxes.UI;
 /// <summary>A non-interactive preview; it never opens a desktop host or changes a box.</summary>
 internal sealed class BoxPreview : Border
 {
-    internal BoxPreview(Box box, string dataDir, bool embedded)
+    internal BoxPreview(Box box, string dataDir)
     {
         Brush foreground = Parse(box.TextColor, UiTheme.BoxText);
         Background = BackgroundBrush(box, dataDir);
@@ -18,7 +18,7 @@ internal sealed class BoxPreview : Border
         BorderBrush.Opacity = 0.22;
         BorderThickness = new Thickness(1);
         CornerRadius = new CornerRadius(UiTheme.BoxRadius(box.CornerRadius));
-        Background.Opacity = embedded ? 1 : Math.Clamp(box.Opacity, 0, 100) / 100.0;
+        Background.Opacity = Math.Clamp(box.Opacity, 0, 100) / 100.0;
         MinHeight = 186;
         var panel = new DockPanel();
         var headerText = UiTheme.Text(box.Name, 13, foreground);
@@ -54,9 +54,11 @@ internal sealed class BoxPreview : Border
         toolbar.Children.Add(chevron);
         headerText.VerticalAlignment = VerticalAlignment.Center;
         toolbar.Children.Add(headerText);
+        Brush headerBackground = Parse(box.TitleBarColor, UiTheme.BoxHeader);
+        headerBackground.Opacity = Math.Clamp(box.Opacity, 0, 100) / 100.0;
         var header = new Border
         {
-            Background = Parse(box.TitleBarColor, UiTheme.BoxHeader),
+            Background = headerBackground,
             Padding = new Thickness(12, 6, 12, 6),
             CornerRadius = new CornerRadius(CornerRadius.TopLeft, CornerRadius.TopRight, 0, 0),
             Child = toolbar,

@@ -70,7 +70,7 @@ public class BoxWindow : IDisposable
 
     public Box Box => _box;
     public IntPtr Handle => _source.Handle;
-    public bool IsEmbedded => _desktopParent != IntPtr.Zero;
+    public bool IsDesktopAttached => _desktopParent != IntPtr.Zero;
 
     public void UpdateDataDirectory(string dataDir, BoxFileTransfers? fileTransfers = null)
     {
@@ -236,26 +236,22 @@ public class BoxWindow : IDisposable
 
         var p = new HwndSourceParameters("DesktopBoxes.Box." + box.Id)
         {
+            // 桌面模式使用 WorkerW/Progman 作为所有者，同时保持顶层窗口，
+            // 以便 WPF 提供背景逐像素透明；找不到桌面宿主时仍为置底顶层窗口。
             ParentWindow = desktopParent,
-            WindowStyle = desktopParent != IntPtr.Zero
-                ? DesktopAttacher.WS_CHILD | DesktopAttacher.WS_VISIBLE | DesktopAttacher.WS_CLIPSIBLINGS
-                : DesktopAttacher.WS_POPUP | DesktopAttacher.WS_VISIBLE,
+            WindowStyle = DesktopAttacher.WS_POPUP | DesktopAttacher.WS_VISIBLE,
             Width = Math.Max(MinimumWidth, (int)box.Width),
             Height = Math.Max(60, (int)box.Height),
             PositionX = 0,
             PositionY = 0,
-            // WorkerW 子窗口不能可靠使用逐像素透明；降级顶层窗口仍可使用。
-            UsesPerPixelOpacity = desktopParent == IntPtr.Zero,
+            UsesPerPixelOpacity = true,
             ExtendedWindowStyle = DesktopAttacher.WS_EX_TOOLWINDOW,
         };
         _source = new HwndSource(p) { RootVisual = _root };
         _source.AddHook(WndProc);
         _root.SizeChanged += (_, _) => UpdateRoundedCorners();
-        if (desktopParent != IntPtr.Zero)
-        {
-            DesktopAttacher.EnsureTopInParent(_source.Handle);
-        }
-        else
+        // WorkerW 所有权负责桌面层级；无桌面宿主时才钉到普通窗口底层。
+        if (desktopParent == IntPtr.Zero)
         {
             DesktopAttacher.PinToBottom(_source.Handle);
         }
@@ -313,7 +309,9 @@ public class BoxWindow : IDisposable
         int r = UiTheme.BoxRadius(_box.CornerRadius);
         _root.CornerRadius = new CornerRadius(r);
         _titleBar.CornerRadius = new CornerRadius(r, r, 0, 0);
-        _root.Background.Opacity = IsEmbedded ? 1.0 : Math.Clamp(_box.Opacity, 0, 100) / 100.0;
+        double opacity = Math.Clamp(_box.Opacity, 0, 100) / 100.0;
+        _root.Background.Opacity = opacity;
+        _titleBar.Background.Opacity = opacity;
 
         Refresh();
         UpdateRoundedCorners();
@@ -568,23 +566,14 @@ public class BoxWindow : IDisposable
         var toDevice = _source.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
         Point screen = toDevice.Transform(new Point(_box.X, _box.Y));
         Point size = toDevice.Transform(new Point(Math.Max(MinimumWidth, _box.Width), h));
-        var position = DesktopAttacher.ScreenToParentClient(
-            _desktopParent,
-            (int)Math.Round(screen.X),
-            (int)Math.Round(screen.Y));
-
         DesktopAttacher.SetWindowPosition(
             _source.Handle,
-            position.X,
-            position.Y,
+            (int)Math.Round(screen.X),
+            (int)Math.Round(screen.Y),
             Math.Max(1, (int)Math.Round(size.X)),
             Math.Max(1, (int)Math.Round(size.Y)));
         UpdateRoundedCorners();
 
-        if (_desktopParent != IntPtr.Zero)
-        {
-            DesktopAttacher.EnsureTopInParent(_source.Handle);
-        }
     }
 
     /// <summary>把盒子位置约束到虚拟屏幕内（拖动时实时调用，保证标题栏始终可见可抓取）。</summary>
@@ -774,7 +763,7 @@ public class BoxWindow : IDisposable
 
     private void ShowAppearance()
     {
-        var dlg = new AppearanceDialog(_box, _dataDir, supportsTransparency: !IsEmbedded);
+        var dlg = new AppearanceDialog(_box, _dataDir, supportsTransparency: true);
         if (dlg.ShowDialog() == true)
         {
             ApplyAppearance();

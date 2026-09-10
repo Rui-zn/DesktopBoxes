@@ -7,9 +7,10 @@ public sealed class BoxExitExporterTests : IDisposable
     private readonly string _fixture = Path.Combine(Path.GetTempPath(), "desktopboxes-exit-export-test-" + Guid.NewGuid().ToString("N"));
     private string Source => Path.Combine(_fixture, "source");
     private string Desktop => Path.Combine(_fixture, "desktop");
+    private string Data => Path.Combine(_fixture, "data");
 
     [Fact]
-    public void Export_CreatesNamedBoxFoldersAndCopiesCompleteContents()
+    public void ExportThenCleanup_RemovesOnlyDesktopCopiesAndNamedFolders()
     {
         string file = FileAt("notes.txt", "hello");
         string folder = Path.Combine(Source, "project");
@@ -29,34 +30,94 @@ public sealed class BoxExitExporterTests : IDisposable
             new() { Name = "空盒子" },
         };
 
-        ExportResult result = BoxExitExporter.Export(Desktop, boxes);
-
+        ExportResult exported = BoxExitExporter.Export(Desktop, Data, boxes);
         Assert.Equal("hello", File.ReadAllText(Path.Combine(Desktop, "工作", "notes.txt")));
-        Assert.Equal("code", File.ReadAllText(Path.Combine(Desktop, "工作", "project", "code.cs")));
         Assert.True(Directory.Exists(Path.Combine(Desktop, "工作", "project", "empty")));
-        Assert.True(Directory.Exists(Path.Combine(Desktop, "空盒子")));
-        Assert.Equal(2, result.CopiedFiles);
-        Assert.Empty(result.Errors);
+        Assert.True(File.Exists(Path.Combine(Data, "desktop-exports.json")));
+
+        CleanupResult cleaned = BoxExitExporter.Cleanup(Desktop, Data);
+
+        Assert.Equal(2, exported.CopiedFiles);
+        Assert.Equal(2, cleaned.DeletedFiles);
+        Assert.False(Directory.Exists(Path.Combine(Desktop, "工作")));
+        Assert.False(Directory.Exists(Path.Combine(Desktop, "空盒子")));
+        Assert.False(File.Exists(Path.Combine(Data, "desktop-exports.json")));
         Assert.True(File.Exists(file));
+        Assert.Empty(exported.Errors);
+        Assert.Empty(cleaned.Errors);
     }
 
     [Fact]
-    public void Export_NeverOverwritesConflictsAndDoesNotDuplicateIdenticalFiles()
+    public void Cleanup_PreservesModifiedAndNewUserContent()
     {
-        string file = FileAt("notes.txt", "from box");
+        string changedSource = FileAt("changed.txt", "original");
+        string unchangedSource = FileAt("unchanged.txt", "same");
+        var box = new Box { Name = "工作" };
+        box.Items.Add(new BoxItem { Path = changedSource, DisplayName = "changed" });
+        box.Items.Add(new BoxItem { Path = unchangedSource, DisplayName = "unchanged" });
+        BoxExitExporter.Export(Desktop, Data, new[] { box });
         string boxDirectory = Path.Combine(Desktop, "工作");
-        Directory.CreateDirectory(boxDirectory);
-        File.WriteAllText(Path.Combine(boxDirectory, "notes.txt"), "existing");
-        var boxes = new[] { BoxWith("工作", file) };
+        File.WriteAllText(Path.Combine(boxDirectory, "changed.txt"), "edited while stopped");
+        Directory.CreateDirectory(Path.Combine(boxDirectory, "new empty folder"));
+        File.WriteAllText(Path.Combine(boxDirectory, "new.txt"), "new");
 
-        ExportResult first = BoxExitExporter.Export(Desktop, boxes);
-        ExportResult second = BoxExitExporter.Export(Desktop, boxes);
+        CleanupResult result = BoxExitExporter.Cleanup(Desktop, Data);
 
-        Assert.Equal("existing", File.ReadAllText(Path.Combine(boxDirectory, "notes.txt")));
-        Assert.Equal("from box", File.ReadAllText(Path.Combine(boxDirectory, "notes (2).txt")));
-        Assert.Equal(1, first.CopiedFiles);
-        Assert.Equal(1, second.UnchangedFiles);
-        Assert.False(File.Exists(Path.Combine(boxDirectory, "notes (3).txt")));
+        Assert.Equal("edited while stopped", File.ReadAllText(Path.Combine(boxDirectory, "changed.txt")));
+        Assert.Equal("new", File.ReadAllText(Path.Combine(boxDirectory, "new.txt")));
+        Assert.True(Directory.Exists(Path.Combine(boxDirectory, "new empty folder")));
+        Assert.False(File.Exists(Path.Combine(boxDirectory, "unchanged.txt")));
+        Assert.False(File.Exists(Path.Combine(boxDirectory, ".desktopboxes-exit-export.json")));
+        Assert.Equal(1, result.PreservedFiles);
+        Assert.Empty(result.Errors);
+    }
+
+    [Fact]
+    public void Export_DoesNotAdoptAnExistingUnmarkedFolder()
+    {
+        string existing = Path.Combine(Desktop, "工作");
+        Directory.CreateDirectory(existing);
+        File.WriteAllText(Path.Combine(existing, "keep.txt"), "keep");
+        string source = FileAt("notes.txt", "content");
+
+        BoxExitExporter.Export(Desktop, Data, new[] { BoxWith("工作", source) });
+        BoxExitExporter.Cleanup(Desktop, Data);
+
+        Assert.Equal("keep", File.ReadAllText(Path.Combine(existing, "keep.txt")));
+        Assert.False(Directory.Exists(Path.Combine(Desktop, "工作 (2)")));
+    }
+
+    [Fact]
+    public void Cleanup_WithTamperedMarker_PreservesEverythingForReview()
+    {
+        string source = FileAt("notes.txt", "content");
+        BoxExitExporter.Export(Desktop, Data, new[] { BoxWith("工作", source) });
+        string marker = Path.Combine(Desktop, "工作", ".desktopboxes-exit-export.json");
+        File.SetAttributes(marker, FileAttributes.Normal);
+        File.WriteAllText(marker, "{}");
+
+        CleanupResult result = BoxExitExporter.Cleanup(Desktop, Data);
+
+        Assert.True(File.Exists(Path.Combine(Desktop, "工作", "notes.txt")));
+        Assert.True(File.Exists(Path.Combine(Data, "desktop-exports.json")));
+        Assert.NotEmpty(result.Errors);
+    }
+
+    [Fact]
+    public void Cleanup_ManifestPathCannotEscapeOwnedBoxFolder()
+    {
+        string source = FileAt("notes.txt", "content");
+        BoxExitExporter.Export(Desktop, Data, new[] { BoxWith("工作", source) });
+        string outside = Path.Combine(Desktop, "outside.txt");
+        File.WriteAllText(outside, "keep");
+        string manifest = Path.Combine(Data, "desktop-exports.json");
+        string json = File.ReadAllText(manifest).Replace("notes.txt", "../outside.txt", StringComparison.Ordinal);
+        File.WriteAllText(manifest, json);
+
+        CleanupResult result = BoxExitExporter.Cleanup(Desktop, Data);
+
+        Assert.Equal("keep", File.ReadAllText(outside));
+        Assert.NotEmpty(result.Errors);
     }
 
     [Fact]
@@ -64,25 +125,11 @@ public sealed class BoxExitExporterTests : IDisposable
     {
         string first = FileAt("first.txt", "1");
         string second = FileAt("second.txt", "2");
-        var boxes = new[] { BoxWith("A/B", first), BoxWith("A/B", second) };
 
-        BoxExitExporter.Export(Desktop, boxes);
+        BoxExitExporter.Export(Desktop, Data, new[] { BoxWith("A/B", first), BoxWith("A/B", second) });
 
         Assert.Equal("1", File.ReadAllText(Path.Combine(Desktop, "A_B", "first.txt")));
         Assert.Equal("2", File.ReadAllText(Path.Combine(Desktop, "A_B (2)", "second.txt")));
-    }
-
-    [Fact]
-    public void Export_WhenFolderNameIsOccupiedByAFile_UsesAvailableFolderName()
-    {
-        Directory.CreateDirectory(Desktop);
-        File.WriteAllText(Path.Combine(Desktop, "工作"), "keep");
-        string source = FileAt("notes.txt", "content");
-
-        BoxExitExporter.Export(Desktop, new[] { BoxWith("工作", source) });
-
-        Assert.Equal("keep", File.ReadAllText(Path.Combine(Desktop, "工作")));
-        Assert.Equal("content", File.ReadAllText(Path.Combine(Desktop, "工作 (2)", "notes.txt")));
     }
 
     private string FileAt(string name, string content)

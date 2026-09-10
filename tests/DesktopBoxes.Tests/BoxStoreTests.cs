@@ -8,6 +8,12 @@ namespace DesktopBoxes.Tests;
 public class BoxStoreTests
 {
     [Fact]
+    public void NewBox_DefaultsToSixtyFivePercentOpacity()
+    {
+        Assert.Equal(65, new Box().Opacity);
+    }
+
+    [Fact]
     public void SaveAndLoad_RoundTrips()
     {
         string dir = Path.Combine(Path.GetTempPath(), "desktopboxes-test-" + Guid.NewGuid().ToString("N"));

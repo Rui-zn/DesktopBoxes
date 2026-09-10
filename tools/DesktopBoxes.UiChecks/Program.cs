@@ -54,9 +54,12 @@ internal static class Program
             new(new Box { Name = "日常工具", X = -20000, Y = -20000, Locked = true }, _output, host.Handle),
             new(new Box { Name = "待读与收藏", X = -20000, Y = -20000 }, _output, host.Handle),
         };
+        Assert(data.Opacity == 65, "new boxes default to 65 percent opacity");
+        Assert((GetWindowLong(windows[0].Handle, -20) & 0x00080000) != 0, "desktop-owned boxes enable per-pixel opacity");
+        bool autoStartEnabled = false;
         var master = new MasterWindow(windows, _output, () => { },
             () => windows.Add(new BoxWindow(new Box { Name = "新建盒子", X = -20000, Y = -20000 }, _output, host.Handle)),
-            w => { w.Dispose(); windows.Remove(w); }, () => true);
+            w => { w.Dispose(); windows.Remove(w); }, () => autoStartEnabled, enabled => autoStartEnabled = enabled, () => true);
         try
         {
             RenderWindow(master, "dashboard.png", 1000, 650);
@@ -78,7 +81,7 @@ internal static class Program
             Assert(windows.Count == 4 && list.SelectedItem == windows[3], "new box selected");
             Click(master, "删除盒子");
             Assert(windows.Count == 3, "delete selected box callback");
-            var dialog = new AppearanceDialog(data, _output, false);
+            var dialog = new AppearanceDialog(data, _output, true);
             RenderWindow(dialog, "appearance.png", 844, 665);
             var theme = Descendants<Button>((DependencyObject)dialog.Content)
                 .Single(b => System.Windows.Automation.AutomationProperties.GetName(b) == "云白主题");
@@ -89,7 +92,7 @@ internal static class Program
             RenderWindow(dialog, "appearance-light.png", 844, 665);
             CloseModal(dialog, "取消");
             Assert(data.BackgroundColor == null && data.IconSize == 48, "cancel preserves appearance");
-            var saved = new AppearanceDialog(data, _output, false);
+            var saved = new AppearanceDialog(data, _output, true);
             RenderWindow(saved, "appearance-compact.png", 744, 490);
             Click(saved, "舒适 · 48");
             Click(saved, "大 · 24");
@@ -165,7 +168,15 @@ internal static class Program
             Descendants<TextBox>((DependencyObject)rename.Content).Single().Text = "  ";
             Assert(!FindButton(rename, "保存名称").IsEnabled, "blank names cannot be saved");
             rename.Close();
-            var empty = new MasterWindow(Array.Empty<BoxWindow>(), _output, () => { }, () => { }, _ => { }, () => true);
+            var autoStart = Descendants<CheckBox>((DependencyObject)master.Content).Single(control => Equals(control.Content, "开机自动启动"));
+            Assert(autoStart.IsChecked == false, "dashboard shows disabled auto-start state");
+            autoStart.IsChecked = true;
+            autoStart.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert(autoStartEnabled && autoStart.IsChecked == true, "dashboard enables auto-start");
+            autoStart.IsChecked = false;
+            autoStart.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert(!autoStartEnabled && autoStart.IsChecked == false, "dashboard disables auto-start");
+            var empty = new MasterWindow(Array.Empty<BoxWindow>(), _output, () => { }, () => { }, _ => { }, () => false, _ => { }, () => true);
             RenderWindow(empty, "dashboard-empty.png", 1000, 650);
             Assert(!FindButton(empty, "统一外观").IsEnabled, "empty dashboard disables bulk operations");
             empty.Close();
@@ -187,6 +198,9 @@ internal static class Program
         _checks++;
         Console.WriteLine($"PASS: {message}");
     }
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern int GetWindowLong(IntPtr hwnd, int index);
 
     private static void RenderBoxGallery()
     {

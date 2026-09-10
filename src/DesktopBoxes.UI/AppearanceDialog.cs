@@ -143,8 +143,8 @@ public class AppearanceDialog : Window
         previewPanel.Children.Add(_preview);
         previewPanel.Children.Add(UiTheme.Text("展示前 6 个项目，实际排列随盒子宽度变化。", 12, UiTheme.Muted));
         var info = UiTheme.Text(supportsTransparency
-            ? "当前为兼容模式，可调整圆角和背景透明度。"
-            : "桌面嵌入模式\n支持圆角边框，保留系统桌面图标。背景保持不透明。", 12, UiTheme.Muted);
+            ? "可调整盒子不透明度。桌面嵌入模式会让整个盒子一起变淡。"
+            : "当前模式暂不支持透明度调整。", 12, UiTheme.Muted);
         info.LineHeight = 21;
         var infoCard = UiTheme.Card(info, 14);
         infoCard.Margin = new Thickness(0, 22, 0, 0);
@@ -259,7 +259,7 @@ public class AppearanceDialog : Window
     private void UpdatePreview()
     {
         foreach (var update in _selectionUpdates) update();
-        _preview.Child = new BoxPreview(_draft, _dataDir, !_supportsTransparency);
+        _preview.Child = new BoxPreview(_draft, _dataDir);
         _imageName.Text = _draft.BackgroundImagePath == null ? "未使用背景图片" : Path.GetFileName(_draft.BackgroundImagePath);
         _imageName.ToolTip = _draft.BackgroundImagePath;
         _mode.IsEnabled = _draft.BackgroundImagePath != null;
