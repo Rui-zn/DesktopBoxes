@@ -26,7 +26,7 @@ public class MasterWindow : Window
 
     public MasterWindow(IReadOnlyList<BoxWindow> windows, string dataDir, Action onChanged,
         Action onNewBox, Action<BoxWindow> onDeleteBox, Func<bool> isAutoStartEnabled,
-        Action<bool> setAutoStart, Func<bool> isExiting)
+        Action<bool> setAutoStart, Action changeDataDirectory, Func<bool> isExiting)
     {
         _windows = windows;
         _dataDir = dataDir;
@@ -94,6 +94,12 @@ public class MasterWindow : Window
         _storage.TextTrimming = TextTrimming.CharacterEllipsis;
         _storage.TextWrapping = TextWrapping.NoWrap;
         railBottom.Children.Add(_storage);
+        var changeStorage = UiTheme.Button("更改或迁移…", changeDataDirectory);
+        changeStorage.Margin = new Thickness(0, 9, 0, 0);
+        changeStorage.HorizontalContentAlignment = HorizontalAlignment.Left;
+        changeStorage.ToolTip = "选择新的数据存储目录并安全迁移现有数据";
+        System.Windows.Automation.AutomationProperties.SetName(changeStorage, "更改数据存储位置");
+        railBottom.Children.Add(changeStorage);
         DockPanel.SetDock(railBottom, Dock.Bottom);
         rail.Children.Add(railBottom);
         rail.Children.Add(new Border());

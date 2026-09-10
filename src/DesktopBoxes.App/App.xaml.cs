@@ -334,7 +334,6 @@ public partial class App : System.Windows.Application
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add("打开总控", null, (_, _) => ShowMaster());
         menu.Items.Add("新建盒子", null, (_, _) => OnNewBoxRequested());
-        menu.Items.Add("数据存储位置…", null, (_, _) => ChangeDataDirectory());
 
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
         menu.Items.Add("退出", null, (_, _) => { if (FileOperationInProgress()) return; _exiting = true; Shutdown(); });
@@ -361,6 +360,7 @@ public partial class App : System.Windows.Application
             onDeleteBox: OnDeleteRequested,
             isAutoStartEnabled: IsAutoStartEnabled,
             setAutoStart: SetAutoStart,
+            changeDataDirectory: ChangeDataDirectory,
             isExiting: () => _exiting);
         _master.Show();
     }

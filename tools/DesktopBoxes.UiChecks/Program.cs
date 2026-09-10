@@ -57,9 +57,11 @@ internal static class Program
         Assert(data.Opacity == 65, "new boxes default to 65 percent opacity");
         Assert((GetWindowLong(windows[0].Handle, -20) & 0x00080000) != 0, "desktop-owned boxes enable per-pixel opacity");
         bool autoStartEnabled = false;
+        int storageChangeRequests = 0;
         var master = new MasterWindow(windows, _output, () => { },
             () => windows.Add(new BoxWindow(new Box { Name = "新建盒子", X = -20000, Y = -20000 }, _output, host.Handle)),
-            w => { w.Dispose(); windows.Remove(w); }, () => autoStartEnabled, enabled => autoStartEnabled = enabled, () => true);
+            w => { w.Dispose(); windows.Remove(w); }, () => autoStartEnabled, enabled => autoStartEnabled = enabled,
+            () => storageChangeRequests++, () => true);
         try
         {
             RenderWindow(master, "dashboard.png", 1000, 650);
@@ -176,7 +178,12 @@ internal static class Program
             autoStart.IsChecked = false;
             autoStart.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Assert(!autoStartEnabled && autoStart.IsChecked == false, "dashboard disables auto-start");
-            var empty = new MasterWindow(Array.Empty<BoxWindow>(), _output, () => { }, () => { }, _ => { }, () => false, _ => { }, () => true);
+            var changeStorage = Descendants<Button>((DependencyObject)master.Content)
+                .Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "更改数据存储位置");
+            changeStorage.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Assert(storageChangeRequests == 1, "dashboard requests data directory migration");
+            var empty = new MasterWindow(Array.Empty<BoxWindow>(), _output, () => { }, () => { }, _ => { }, () => false,
+                _ => { }, () => { }, () => true);
             RenderWindow(empty, "dashboard-empty.png", 1000, 650);
             Assert(!FindButton(empty, "统一外观").IsEnabled, "empty dashboard disables bulk operations");
             empty.Close();
