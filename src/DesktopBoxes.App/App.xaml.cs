@@ -20,6 +20,7 @@ public partial class App : System.Windows.Application
     private System.Threading.Mutex? _mutex;
     private System.Windows.Forms.NotifyIcon? _tray;
     private BoxStore? _store;
+    private BoxFileTransfers? _fileTransfers;
     private readonly List<BoxWindow> _windows = new();
     private IntPtr _desktopParent;
     private string _dataDir = "";
@@ -29,6 +30,7 @@ public partial class App : System.Windows.Application
     private System.Windows.Threading.DispatcherTimer? _keepAliveTimer;
     private System.Windows.Threading.DispatcherTimer? _desktopMonitorTimer;
     private bool _usingDesktopFallback;
+    private int _exitExportStarted;
 
     protected override void OnStartup(StartupEventArgs e)
     {
@@ -60,6 +62,18 @@ public partial class App : System.Windows.Application
         _dataDir = DataDirectory.Resolve();
         _store = new BoxStore(_dataDir);
         var boxes = _store.Load();
+        try
+        {
+            var recoveryMessages = BoxFileTransfers.Recover(_dataDir, boxes, () => _store.Save(boxes));
+            if (recoveryMessages.Count > 0)
+                System.Windows.MessageBox.Show(string.Join("\n\n", recoveryMessages), "文件移动恢复", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        catch (Exception ex)
+        {
+            LogError("file-recovery", ex);
+            System.Windows.MessageBox.Show($"文件移动记录未清理，原文件仍保留。\n{ex.Message}", "文件移动恢复", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        _fileTransfers = CreateFileTransfers();
 
         if (_store.PreservedCorruptFile != null)
         {
@@ -104,7 +118,7 @@ public partial class App : System.Windows.Application
 
     private void CreateBoxWindow(Box box)
     {
-        var w = new BoxWindow(box, _dataDir, _desktopParent);
+        var w = new BoxWindow(box, _dataDir, _desktopParent, _fileTransfers);
         w.Changed += _ => ScheduleSave();
         w.DeleteRequested += OnDeleteRequested;
         w.NewBoxRequested += OnNewBoxRequested;
@@ -147,6 +161,16 @@ public partial class App : System.Windows.Application
         CleanupUnusedBackgrounds();
     }
 
+    private BoxFileTransfers CreateFileTransfers() => new(_dataDir,
+        () => _windows.Select(w => w.Box).ToList(),
+        () =>
+        {
+            // File moves commit synchronously; never depend on the layout debounce timer.
+            _store!.Save(_windows.Select(w => w.Box).ToList());
+            foreach (var window in _windows) window.RefreshContents();
+            _master?.RefreshList();
+        }, ShellFileMover.Move);
+
     private void CleanupUnusedBackgrounds()
     {
         string backgrounds = Path.Combine(_dataDir, "backgrounds");
@@ -188,12 +212,24 @@ public partial class App : System.Windows.Application
 
     private void OnDeleteRequested(BoxWindow w)
     {
+        if (FileOperationInProgress()) return;
         if (System.Windows.MessageBox.Show(
-                $"确定删除盒子“{w.Box.Name}”吗？\n盒子里的文件不会从磁盘删除。",
+                $"确定删除盒子“{w.Box.Name}”吗？\n托管文件将移回桌面（同名自动改名），不会从磁盘删除。\n旧版的外部引用只移除引用，原文件不动。",
                 "删除盒子",
                 MessageBoxButton.YesNo,
                 MessageBoxImage.Warning) != MessageBoxResult.Yes)
         {
+            return;
+        }
+
+        try
+        {
+            foreach (var item in w.Box.Items.Where(i => i.StoragePath != null).ToList())
+                _fileTransfers!.ReturnToDirectory(w.Box, item, Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
+        }
+        catch (Exception ex)
+        {
+            System.Windows.MessageBox.Show($"盒子未删除，未完成的项目仍保留。\n{ex.Message}", "删除盒子未完成", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -309,7 +345,7 @@ public partial class App : System.Windows.Application
         menu.Items.Add("数据存储位置…", null, (_, _) => ChangeDataDirectory());
 
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-        menu.Items.Add("退出", null, (_, _) => { _exiting = true; Shutdown(); });
+        menu.Items.Add("退出", null, (_, _) => { if (FileOperationInProgress()) return; _exiting = true; Shutdown(); });
         _tray.ContextMenuStrip = menu;
         _tray.DoubleClick += (_, _) => ShowMaster();
 
@@ -375,6 +411,13 @@ public partial class App : System.Windows.Application
 
     private void ChangeDataDirectory()
     {
+        if (FileOperationInProgress()) return;
+        string pendingTransfers = Path.Combine(_dataDir, "transfers");
+        if (Directory.Exists(pendingTransfers) && Directory.EnumerateFiles(pendingTransfers, "*.json").Any())
+        {
+            System.Windows.MessageBox.Show("存在未完成的文件移动记录，请先重启恢复并处理提示的文件，再迁移数据目录。", "数据存储位置");
+            return;
+        }
         if (DataDirectory.IsPortable())
         {
             System.Windows.MessageBox.Show(
@@ -428,10 +471,14 @@ public partial class App : System.Windows.Application
         }
 
         var originalBackgroundPaths = _windows.ToDictionary(w => w.Box, w => w.Box.BackgroundImagePath);
+        var originalItemPaths = _windows.SelectMany(w => w.Box.Items).ToDictionary(i => i, i => i.Path);
         try
         {
             SaveOrThrow();
             CopyDataDirectory(source, target);
+
+            foreach (var item in _windows.SelectMany(w => w.Box.Items).Where(i => i.StoragePath != null))
+                item.Path = BoxFileTransfers.ResolveStoredPath(target, item.StoragePath!);
 
             foreach (var window in _windows)
             {
@@ -448,7 +495,8 @@ public partial class App : System.Windows.Application
 
             _dataDir = target;
             _store = targetStore;
-            foreach (var window in _windows) window.UpdateDataDirectory(target);
+            _fileTransfers = CreateFileTransfers();
+            foreach (var window in _windows) window.UpdateDataDirectory(target, _fileTransfers);
             _master?.UpdateDataDirectory(target);
 
             System.Windows.MessageBox.Show(
@@ -460,6 +508,7 @@ public partial class App : System.Windows.Application
         catch (Exception ex)
         {
             foreach (var pair in originalBackgroundPaths) pair.Key.BackgroundImagePath = pair.Value;
+            foreach (var pair in originalItemPaths) pair.Key.Path = pair.Value;
             LogError("storage-migration", ex);
             System.Windows.MessageBox.Show(
                 $"数据迁移失败：{ex.Message}\n\n原目录未删除。",
@@ -480,6 +529,7 @@ public partial class App : System.Windows.Application
     private static void CopyDataDirectory(string source, string target)
     {
         Directory.CreateDirectory(target);
+        BoxFileTransfers.CopyManagedFiles(source, target);
         foreach (string directoryName in new[] { "backgrounds", "icon-cache" })
         {
             string sourceDirectory = Path.Combine(source, directoryName);
@@ -493,6 +543,13 @@ public partial class App : System.Windows.Application
                 File.Copy(sourceFile, targetFile, overwrite: true);
             }
         }
+    }
+
+    private bool FileOperationInProgress()
+    {
+        if (_fileTransfers?.IsBusy != true && !BoxWindow.IsFileDragActive) return false;
+        System.Windows.MessageBox.Show("正在移动或拖动文件，请完成后再操作。", "桌面盒子");
+        return true;
     }
 
     private static void SetAutoStart(bool enabled)
@@ -530,7 +587,33 @@ public partial class App : System.Windows.Application
             {
                 LogError("unhandled", ex);
             }
+            ExportBoxesForExit("unhandled");
         };
+        AppDomain.CurrentDomain.ProcessExit += (_, _) => ExportBoxesForExit("process-exit");
+    }
+
+    private void ExportBoxesForExit(string reason, IReadOnlyList<Box>? currentBoxes = null)
+    {
+        if (System.Threading.Interlocked.Exchange(ref _exitExportStarted, 1) != 0 || _store == null) return;
+
+        try
+        {
+            IReadOnlyList<Box> boxes = currentBoxes ?? _store.Load();
+            string desktop = Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory);
+            if (string.IsNullOrWhiteSpace(desktop)) throw new DirectoryNotFoundException("无法确定桌面文件夹位置。");
+
+            ExportResult result = BoxExitExporter.Export(desktop, boxes);
+            if (result.Errors.Count > 0)
+            {
+                LogError(
+                    $"exit-export-{reason}",
+                    new IOException($"退出备份有 {result.Errors.Count} 个项目未完成：{Environment.NewLine}{string.Join(Environment.NewLine, result.Errors)}"));
+            }
+        }
+        catch (Exception ex)
+        {
+            LogError($"exit-export-{reason}", ex);
+        }
     }
 
     private void LogStartup()
@@ -563,7 +646,9 @@ public partial class App : System.Windows.Application
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _saveTimer?.Stop();
         Save();
+        ExportBoxesForExit("normal", _windows.Select(window => window.Box).ToList());
         _desktopMonitorTimer?.Stop();
         _keepAliveTimer?.Stop();
         foreach (var w in _windows)

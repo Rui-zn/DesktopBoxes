@@ -66,6 +66,8 @@ public class BoxStore
             foreach (var box in loaded)
             {
                 Normalize(box);
+                foreach (var item in box.Items.Where(i => i.StoragePath != null))
+                    item.Path = BoxFileTransfers.ResolveStoredPath(_dir, item.StoragePath!);
             }
             boxes = loaded;
             return true;

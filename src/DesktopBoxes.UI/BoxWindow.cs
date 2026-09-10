@@ -3,10 +3,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using DesktopBoxes.Core;
 using DesktopBoxes.Win32;
 
@@ -18,23 +18,39 @@ namespace DesktopBoxes.UI;
 /// </summary>
 public class BoxWindow : IDisposable
 {
-    private const int TitleBarHeight = 28;
+    private const int TitleBarHeight = (int)LayoutHelper.TitleBarHeight;
     private const int AnimDurationMs = 160;
+    private const int MinimumWidth = 220;
 
     private int IconSize => _box.IconSize is >= 24 and <= 96 ? _box.IconSize : 32;
 
     private readonly HwndSource _source;
     private readonly Box _box;
     private string _dataDir;
+    private BoxFileTransfers? _fileTransfers;
+    private static DragSession? _fileDrag;
+    private const string BoxDragFormat = "DesktopBoxes.FileMove.Session";
+    public static bool IsFileDragActive => _fileDrag != null;
+    private sealed record DragSession(string Token, Box Box, BoxItem Item);
     private readonly IntPtr _desktopParent;
 
     private readonly Border _root;
     private readonly Border _titleBar;
     private readonly TextBlock _title;
+    private readonly TextBlock _count;
+    private readonly Button _lockBtn;
+    private readonly Border _countBadge;
+    private readonly TextBlock _emptyState;
     private readonly Button _collapseBtn;
+    private readonly Button _menuBtn;
+    private readonly Border _resizeGrip;
     private readonly ScrollViewer _scroll;
     private readonly WrapPanel _itemsWrap;
     private readonly System.Windows.Threading.DispatcherTimer _animTimer;
+    private readonly RoundedWindowRegion _windowRegion = new();
+    private bool _regionUpdatePending;
+    private bool _disposed;
+    private int _currentHeight;
 
     private Brush _textBrush = Brushes.White;
 
@@ -56,61 +72,109 @@ public class BoxWindow : IDisposable
     public IntPtr Handle => _source.Handle;
     public bool IsEmbedded => _desktopParent != IntPtr.Zero;
 
-    public void UpdateDataDirectory(string dataDir) => _dataDir = dataDir;
+    public void UpdateDataDirectory(string dataDir, BoxFileTransfers? fileTransfers = null)
+    {
+        _dataDir = dataDir;
+        _fileTransfers = fileTransfers;
+        RefreshContents();
+    }
 
     /// <summary>任意变更后触发，供上层持久化。</summary>
     public event Action<BoxWindow>? Changed;
     public event Action<BoxWindow>? DeleteRequested;
     public event Action? NewBoxRequested;
 
-    public BoxWindow(Box box, string dataDir, IntPtr desktopParent = default)
+    public BoxWindow(Box box, string dataDir, IntPtr desktopParent = default, BoxFileTransfers? fileTransfers = null)
     {
         _box = box;
         _dataDir = dataDir;
+        _fileTransfers = fileTransfers;
         _desktopParent = desktopParent;
+        _box.Width = Math.Max(MinimumWidth, _box.Width);
 
         _root = new Border
         {
-            BorderBrush = new SolidColorBrush(Color.FromRgb(70, 76, 90)),
+            BorderBrush = UiTheme.Brush("#525B73"),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10),
+            CornerRadius = new CornerRadius(UiTheme.BoxRadius(box.CornerRadius)),
             AllowDrop = true,
         };
+        UiTheme.Install(_root);
+        TextElement.SetFontFamily(_root, new FontFamily("Segoe UI, Microsoft YaHei UI"));
 
         _title = new TextBlock
         {
             Foreground = Brushes.White,
-            FontSize = 12,
+            FontSize = 13,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(4, 0, 0, 0),
+            Margin = new Thickness(6, 0, 6, 0),
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
         _collapseBtn = new Button
         {
-            Width = 22,
-            Height = 20,
+            Width = 28,
+            Height = 28,
+            MinHeight = 28,
+            FontFamily = new FontFamily("Segoe MDL2 Assets"),
+            FontSize = 10,
             Padding = new Thickness(0),
-            Margin = new Thickness(2, 0, 0, 0),
+            Margin = new Thickness(6, 0, 0, 0),
             Background = Brushes.Transparent,
             BorderThickness = new Thickness(0),
             Foreground = Brushes.White,
             Cursor = Cursors.Hand,
         };
         _collapseBtn.Click += (_, _) => ToggleCollapse();
+        _collapseBtn.SetResourceReference(FrameworkElement.StyleProperty, "BoxToolbarButton");
+        _menuBtn = new Button
+        {
+            Content = "\uE712",
+            FontFamily = new FontFamily("Segoe MDL2 Assets"),
+            Width = 28,
+            Height = 28,
+            MinHeight = 28,
+            Padding = new Thickness(0),
+            Margin = new Thickness(4, 0, 6, 0),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            ToolTip = "盒子选项",
+        };
+        System.Windows.Automation.AutomationProperties.SetName(_menuBtn, "盒子选项");
+        _menuBtn.SetResourceReference(FrameworkElement.StyleProperty, "BoxToolbarButton");
+        _menuBtn.Click += (_, _) => ShowBoxMenu(_menuBtn);
+        _count = new TextBlock { FontSize = 10, VerticalAlignment = VerticalAlignment.Center, Opacity = 0.8 };
+        _countBadge = new Border
+        {
+            CornerRadius = new CornerRadius(7),
+            Padding = new Thickness(6, 2, 6, 2),
+            Margin = new Thickness(0, 0, 6, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = _count,
+        };
+        _lockBtn = new Button();
+        _lockBtn.SetResourceReference(FrameworkElement.StyleProperty, "BoxToolbarButton");
+        System.Windows.Automation.AutomationProperties.SetAutomationId(_lockBtn, "BoxLockToggle");
+        _lockBtn.Click += (_, _) => ToggleLock();
 
         _titleBar = new Border
         {
-            Height = TitleBarHeight,
+            Height = TitleBarHeight - 2,
             CornerRadius = new CornerRadius(10, 10, 0, 0),
             Child = new DockPanel(),
         };
         var dock = (DockPanel)_titleBar.Child;
+        DockPanel.SetDock(_menuBtn, Dock.Right);
+        dock.Children.Add(_menuBtn);
+        DockPanel.SetDock(_lockBtn, Dock.Right);
+        dock.Children.Add(_lockBtn);
+        DockPanel.SetDock(_countBadge, Dock.Right);
+        dock.Children.Add(_countBadge);
         DockPanel.SetDock(_collapseBtn, Dock.Left);
         dock.Children.Add(_collapseBtn);
         dock.Children.Add(_title);
 
-        _itemsWrap = new WrapPanel { Margin = new Thickness(2) };
+        _itemsWrap = new WrapPanel { Margin = new Thickness(10, 10, 10, 16) };
         _scroll = new ScrollViewer
         {
             Content = _itemsWrap,
@@ -126,22 +190,40 @@ public class BoxWindow : IDisposable
             Cursor = Cursors.SizeNWSE,
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Bottom,
+            Margin = new Thickness(0, 0, 8, 8),
+            ToolTip = "拖动调整大小",
             Child = new System.Windows.Shapes.Path
             {
-                Data = Geometry.Parse("M 0 12 L 12 0"),
+                Data = Geometry.Parse("M 3 11 L 11 3 M 8 11 L 11 8"),
                 Stroke = new SolidColorBrush(Color.FromRgb(120, 128, 144)),
                 StrokeThickness = 1.5,
             },
         };
+        _resizeGrip = resizeGrip;
+        _emptyState = new TextBlock
+        {
+            Text = "＋\n拖入文件，收好常用\n应用 · 文件夹 · 快捷方式",
+            FontSize = 12,
+            LineHeight = 26,
+            TextWrapping = TextWrapping.Wrap,
+            TextAlignment = TextAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(14),
+            Opacity = 0.7,
+            IsHitTestVisible = false,
+        };
 
         var layout = new Grid();
-        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(TitleBarHeight) });
+        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(TitleBarHeight - 2) });
         layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         Grid.SetRow(_titleBar, 0);
         Grid.SetRow(_scroll, 1);
         Grid.SetRow(resizeGrip, 1);
         layout.Children.Add(_titleBar);
         layout.Children.Add(_scroll);
+        Grid.SetRow(_emptyState, 1);
+        layout.Children.Add(_emptyState);
         layout.Children.Add(resizeGrip);
 
         _root.Child = layout;
@@ -158,7 +240,7 @@ public class BoxWindow : IDisposable
             WindowStyle = desktopParent != IntPtr.Zero
                 ? DesktopAttacher.WS_CHILD | DesktopAttacher.WS_VISIBLE | DesktopAttacher.WS_CLIPSIBLINGS
                 : DesktopAttacher.WS_POPUP | DesktopAttacher.WS_VISIBLE,
-            Width = Math.Max(120, (int)box.Width),
+            Width = Math.Max(MinimumWidth, (int)box.Width),
             Height = Math.Max(60, (int)box.Height),
             PositionX = 0,
             PositionY = 0,
@@ -168,6 +250,7 @@ public class BoxWindow : IDisposable
         };
         _source = new HwndSource(p) { RootVisual = _root };
         _source.AddHook(WndProc);
+        _root.SizeChanged += (_, _) => UpdateRoundedCorners();
         if (desktopParent != IntPtr.Zero)
         {
             DesktopAttacher.EnsureTopInParent(_source.Handle);
@@ -184,21 +267,16 @@ public class BoxWindow : IDisposable
 
     private void WireEvents(Border titleBar, Border resizeGrip)
     {
-        _root.DragOver += (_, e) =>
+        void DragFeedback(object sender, DragEventArgs e)
         {
-            e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+            e.Effects = DropEffect(e.Data, e.AllowedEffects, e.KeyStates);
+            _root.BorderBrush = e.Effects == DragDropEffects.Move ? UiTheme.Brush("#9C94FF") : FrameBrush();
             e.Handled = true;
-        };
-        _root.Drop += (_, e) =>
-        {
-            if (e.Data.GetData(DataFormats.FileDrop) is string[] paths)
-            {
-                foreach (string path in paths)
-                {
-                    AddItem(path);
-                }
-            }
-        };
+        }
+        _root.PreviewDragEnter += DragFeedback;
+        _root.PreviewDragOver += DragFeedback;
+        _root.DragLeave += (_, _) => _root.BorderBrush = FrameBrush();
+        _root.PreviewDrop += (_, e) => ReceiveDrop(e);
 
         _root.MouseRightButtonUp += (_, e) => ShowBoxMenu(_root);
         titleBar.MouseRightButtonUp += (_, e) => { ShowBoxMenu(titleBar); e.Handled = true; };
@@ -216,107 +294,77 @@ public class BoxWindow : IDisposable
 
     private void ApplyAppearance()
     {
-        _textBrush = TryParseColor(_box.TextColor, out var tc) ? new SolidColorBrush(tc) : Brushes.White;
+        _textBrush = BoxPreview.Parse(_box.TextColor, UiTheme.BoxText);
 
-        string? backgroundPath = ResolveDataPath(_box.BackgroundImagePath);
-        if (!string.IsNullOrWhiteSpace(backgroundPath) && File.Exists(backgroundPath))
-        {
-            var brush = new ImageBrush();
-            try
-            {
-                var bmp = new BitmapImage();
-                bmp.BeginInit();
-                bmp.UriSource = new Uri(backgroundPath);
-                bmp.CacheOption = BitmapCacheOption.OnLoad;
-                bmp.EndInit();
-                bmp.Freeze();
-                brush.ImageSource = bmp;
-            }
-            catch
-            {
-                brush.ImageSource = null;
-            }
-            ApplyImageMode(brush, _box.BackgroundImageMode);
-            _root.Background = brush;
-        }
-        else if (TryParseColor(_box.BackgroundColor, out var bc))
-        {
-            _root.Background = new SolidColorBrush(bc);
-        }
-        else
-        {
-            _root.Background = new SolidColorBrush(Color.FromRgb(40, 44, 52));
-        }
-
-        _titleBar.Background = TryParseColor(_box.TitleBarColor, out var tbc)
-            ? new SolidColorBrush(tbc)
-            : new SolidColorBrush(Color.FromRgb(52, 57, 68));
+        _root.Background = BoxPreview.BackgroundBrush(_box, _dataDir);
+        _titleBar.Background = BoxPreview.Parse(_box.TitleBarColor, UiTheme.BoxHeader);
 
         _title.Foreground = _textBrush;
         _collapseBtn.Foreground = _textBrush;
+        _menuBtn.Foreground = _textBrush;
+        _count.Foreground = _textBrush;
+        _lockBtn.Foreground = _textBrush;
+        _emptyState.Foreground = _textBrush;
 
-        int r = IsEmbedded ? 0 : Math.Max(0, _box.CornerRadius);
+        var badgeBrush = _textBrush.Clone();
+        badgeBrush.Opacity = 0.08;
+        _countBadge.Background = badgeBrush;
+        _root.BorderBrush = FrameBrush();
+        int r = UiTheme.BoxRadius(_box.CornerRadius);
         _root.CornerRadius = new CornerRadius(r);
         _titleBar.CornerRadius = new CornerRadius(r, r, 0, 0);
         _root.Background.Opacity = IsEmbedded ? 1.0 : Math.Clamp(_box.Opacity, 0, 100) / 100.0;
 
         Refresh();
+        UpdateRoundedCorners();
     }
 
-    private static void ApplyImageMode(ImageBrush brush, string? mode)
+    private Brush FrameBrush()
     {
-        switch (mode)
-        {
-            case "Fill":
-                brush.Stretch = Stretch.Fill;
-                break;
-            case "Uniform":
-                brush.Stretch = Stretch.Uniform;
-                break;
-            case "Tile":
-                brush.Stretch = Stretch.Fill;
-                brush.TileMode = TileMode.Tile;
-                brush.ViewportUnits = BrushMappingMode.Absolute;
-                brush.Viewport = new Rect(0, 0, 128, 128);
-                break;
-            case "Center":
-                brush.Stretch = Stretch.None;
-                brush.AlignmentX = AlignmentX.Center;
-                brush.AlignmentY = AlignmentY.Center;
-                break;
-            default:
-                brush.Stretch = Stretch.UniformToFill;
-                break;
-        }
+        var brush = _textBrush.Clone();
+        brush.Opacity = 0.22;
+        return brush;
     }
 
-    private static bool TryParseColor(string? hex, out Color color)
+    private void UpdateRoundedCorners()
     {
-        color = default;
-        if (string.IsNullOrWhiteSpace(hex)) return false;
-        string s = hex.Trim().TrimStart('#');
-        if (s.Length != 6 && s.Length != 8) return false;
-        try
-        {
-            byte r = Convert.ToByte(s.Substring(0, 2), 16);
-            byte g = Convert.ToByte(s.Substring(2, 2), 16);
-            byte b = Convert.ToByte(s.Substring(4, 2), 16);
-            byte a = s.Length == 8 ? Convert.ToByte(s.Substring(6, 2), 16) : (byte)255;
-            color = Color.FromArgb(a, r, g, b);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        if (_disposed) return;
+        double radius = UiTheme.BoxRadius(_box.CornerRadius);
+        if (_root.ActualWidth > 0 && _root.ActualHeight > 0)
+            _root.Clip = new RectangleGeometry(new Rect(0, 0, _root.ActualWidth, _root.ActualHeight), radius, radius);
+        // WPF clipping alone leaves a rectangular opaque child HWND behind it.
+        _windowRegion.Update(_source.Handle, radius);
     }
 
     // ---------- 渲染 ----------
 
     private void Refresh()
     {
-        _title.Text = (_box.Locked ? "🔒 " : "") + $"{_box.Name}  ({_box.Items.Count})";
-        _collapseBtn.Content = _box.Collapsed ? "▸" : "▾";
+        _titleBar.CornerRadius = _box.Collapsed ? _root.CornerRadius
+            : new CornerRadius(_root.CornerRadius.TopLeft, _root.CornerRadius.TopRight, 0, 0);
+        _title.Text = _box.Name;
+        _title.ToolTip = _box.Name;
+        _count.Text = _box.Items.Count > 99 ? "99+" : _box.Items.Count.ToString();
+        _countBadge.ToolTip = $"{_box.Items.Count} 个项目";
+        _collapseBtn.Content = _box.Collapsed ? "\uE76C" : "\uE70D";
+        _collapseBtn.ToolTip = _box.Collapsed ? "展开盒子" : "折叠盒子";
+        System.Windows.Automation.AutomationProperties.SetName(_collapseBtn, (string)_collapseBtn.ToolTip);
+        _lockBtn.Content = _box.Locked ? "\uE72E" : "\uE785";
+        _lockBtn.ToolTip = _box.Locked ? "已锁定位置和大小 · 点击解锁" : "可移动和缩放 · 点击锁定";
+        System.Windows.Automation.AutomationProperties.SetName(_lockBtn, _box.Locked ? "解锁盒子" : "锁定盒子");
+        System.Windows.Automation.AutomationProperties.SetHelpText(_lockBtn, (string)_lockBtn.ToolTip);
+        var lockBrush = _textBrush.Clone();
+        lockBrush.Opacity = _box.Locked ? 0.16 : 0;
+        _lockBtn.Background = lockBrush;
+        _titleBar.Cursor = _box.Locked ? Cursors.Arrow : Cursors.SizeAll;
+        if (_box.Locked)
+        {
+            _dragging = _resizing = false;
+            if (_titleBar.IsMouseCaptured) _titleBar.ReleaseMouseCapture();
+            if (_resizeGrip.IsMouseCaptured) _resizeGrip.ReleaseMouseCapture();
+        }
+        _emptyState.Visibility = !_box.Collapsed && _box.Items.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        _resizeGrip.Visibility = _box.Locked || _box.Collapsed ? Visibility.Collapsed : Visibility.Visible;
         _itemsWrap.Children.Clear();
         foreach (var item in _box.Items)
         {
@@ -333,25 +381,56 @@ public class BoxWindow : IDisposable
             Height = size,
             Source = IconCache.Get(item.Path, size) ?? IconCache.Fallback,
             Stretch = Stretch.Uniform,
-            Margin = new Thickness(0, 4, 0, 2),
+            Margin = new Thickness(0, 6, 0, 8),
         };
         var label = new TextBlock
         {
             Text = item.DisplayName,
-            FontSize = 11,
+            FontSize = 12,
             Foreground = _textBrush,
             TextTrimming = TextTrimming.CharacterEllipsis,
             MaxWidth = size + 36,
             TextAlignment = TextAlignment.Center,
         };
-        var stack = new StackPanel { Width = size + 44, Margin = new Thickness(3) };
+        var stack = new StackPanel { Width = size + 38, Margin = new Thickness(2, 2, 2, 7) };
         stack.Children.Add(image);
         stack.Children.Add(label);
 
-        var border = new Border { Background = Brushes.Transparent, Child = stack, Cursor = Cursors.Hand };
+        var border = new Border
+        {
+            Background = ItemBackground(false),
+            BorderBrush = Brushes.Transparent,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(12),
+            Margin = new Thickness(2),
+            Child = stack,
+            Cursor = Cursors.Hand,
+            Focusable = true,
+            ToolTip = $"{item.DisplayName}\n{item.Path}",
+        };
+        System.Windows.Automation.AutomationProperties.SetName(border, item.DisplayName);
+        void Highlight(bool active)
+        {
+            border.Background = ItemBackground(active);
+            border.BorderBrush = border.IsKeyboardFocused ? UiTheme.Brush("#9C94FF") : Brushes.Transparent;
+        }
+        border.MouseEnter += (_, _) => Highlight(true);
+        border.MouseLeave += (_, _) => Highlight(border.IsKeyboardFocused);
+        border.GotKeyboardFocus += (_, _) => Highlight(true);
+        border.LostKeyboardFocus += (_, _) => Highlight(border.IsMouseOver);
+        border.KeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter) { OpenItem(item); e.Handled = true; }
+            else if (e.Key == Key.Apps || (e.Key == Key.F10 && Keyboard.Modifiers == ModifierKeys.Shift))
+            {
+                ShowItemMenu(item);
+                e.Handled = true;
+            }
+        };
 
         border.MouseLeftButtonDown += (_, e) =>
         {
+            border.Focus();
             _itemDragStart = e.GetPosition(border);
             if (e.ClickCount == 2)
             {
@@ -373,43 +452,99 @@ public class BoxWindow : IDisposable
                 }
 
                 _itemDragStart = null;
-                var data = new DataObject(DataFormats.FileDrop, new[] { item.Path });
-                DragDrop.DoDragDrop(border, data, DragDropEffects.Copy | DragDropEffects.Move);
+                DragItem(border, item);
             }
         };
 
         return border;
     }
 
-    // ---------- 内容变更 ----------
-
-    private void AddItem(string path)
+    private Brush ItemBackground(bool active)
     {
-        if (string.IsNullOrWhiteSpace(path) || (!File.Exists(path) && !Directory.Exists(path)))
-        {
-            return;
-        }
-
-        ItemKind kind = BoxItem.DetectKind(path);
-        var item = new BoxItem
-        {
-            Path = path,
-            Kind = kind,
-            DisplayName = DefaultDisplayName(path),
-            ResolvedTarget = kind == ItemKind.Shortcut ? ShellLinkResolver.ResolveTarget(path) : null,
-        };
-        _box.Items.Add(item);
-        Refresh();
-        RaiseChanged();
+        var brush = _textBrush.Clone();
+        brush.Opacity = active ? 0.11 : 0.035;
+        return brush;
     }
 
-    private static string DefaultDisplayName(string path)
+    // ---------- 内容变更 ----------
+
+    private DragDropEffects DropEffect(IDataObject data, DragDropEffects allowed, DragDropKeyStates keys)
     {
-        if (Directory.Exists(path))
+        if (_fileTransfers == null || _fileTransfers.IsBusy || (allowed & DragDropEffects.Move) == 0 ||
+            (keys & (DragDropKeyStates.ControlKey | DragDropKeyStates.AltKey)) != 0) return DragDropEffects.None;
+        try
         {
-            return new DirectoryInfo(path).Name;
+            if (!data.GetDataPresent(DataFormats.FileDrop)) return DragDropEffects.None;
+            if (_fileDrag != null && Equals(data.GetData(BoxDragFormat), _fileDrag.Token) && _fileDrag.Box == _box)
+                return DragDropEffects.None;
+            return DragDropEffects.Move;
         }
-        return Path.GetFileNameWithoutExtension(path);
+        catch { return DragDropEffects.None; }
+    }
+
+    private void ReceiveDrop(DragEventArgs e)
+    {
+        bool accept = DropEffect(e.Data, e.AllowedEffects, e.KeyStates) == DragDropEffects.Move;
+        e.Handled = true;
+        // Optimized move: we move the file, so the source must NOT delete it again.
+        // https://learn.microsoft.com/windows/win32/shell/datascenarios#handling-optimized-move-operations
+        e.Effects = DragDropEffects.None;
+        _root.BorderBrush = FrameBrush();
+        if (!accept) return;
+        var failures = new List<string>();
+        bool completed = false;
+        try
+        {
+            if (e.Data.GetData(DataFormats.FileDrop) is not string[] paths) return;
+            foreach (string path in paths.Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                try
+                {
+                    var session = _fileDrag != null && Equals(e.Data.GetData(BoxDragFormat), _fileDrag.Token) ? _fileDrag : null;
+                    _fileTransfers!.Import(_box, path, session?.Box, session?.Item);
+                }
+                catch (Exception ex)
+                {
+                    failures.Add($"{Path.GetFileName(path)}：{ex.Message}");
+                    if (ex is OperationCanceledException || ex.InnerException is OperationCanceledException) break;
+                }
+            }
+            completed = failures.Count == 0 && paths.Length > 0;
+        }
+        catch (Exception ex) { failures.Add(ex.Message); }
+        finally
+        {
+            // Notify only AFTER extracting/moving files: a real Shell data object may
+            // release its file list as soon as it receives performed-effect feedback.
+            try { SetDropEffect(e.Data, "Performed DropEffect", DragDropEffects.None); }
+            catch { /* e.Effects is already None, so no source deletion is requested. */ }
+            if (completed)
+                try { SetDropEffect(e.Data, "Logical Performed DropEffect", DragDropEffects.Move); }
+                catch { /* Logical effect is advisory; the optimized move has completed. */ }
+            RefreshContents();
+            RaiseChanged();
+        }
+        if (failures.Count > 0) MessageBox.Show(string.Join("\n\n", failures), "部分项目未完成移动", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    private static void SetDropEffect(IDataObject data, string format, DragDropEffects effect) =>
+        data.SetData(format, new MemoryStream(BitConverter.GetBytes((int)effect)), false);
+
+    private void DragItem(FrameworkElement source, BoxItem item)
+    {
+        if (_fileTransfers == null || _fileTransfers.IsBusy || _fileDrag != null) return;
+        try
+        {
+            _fileTransfers.ValidateForExport(item);
+            _fileDrag = new DragSession(Guid.NewGuid().ToString("N"), _box, item);
+            var data = new DataObject(DataFormats.FileDrop, new[] { item.Path });
+            data.SetData(BoxDragFormat, _fileDrag.Token, false);
+            SetDropEffect(data, "Preferred DropEffect", DragDropEffects.Move);
+            DragDrop.DoDragDrop(source, data, DragDropEffects.Move);
+            _fileTransfers.CompleteExternalMove(_box, item);
+        }
+        catch (Exception ex) { MessageBox.Show(ex.Message, "文件移动未完成", MessageBoxButton.OK, MessageBoxImage.Warning); }
+        finally { _fileDrag = null; RefreshContents(); RaiseChanged(); }
     }
 
     private void ToggleCollapse()
@@ -429,9 +564,10 @@ public class BoxWindow : IDisposable
 
     private void SetHeight(int h)
     {
+        _currentHeight = h;
         var toDevice = _source.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
         Point screen = toDevice.Transform(new Point(_box.X, _box.Y));
-        Point size = toDevice.Transform(new Point(Math.Max(120, _box.Width), h));
+        Point size = toDevice.Transform(new Point(Math.Max(MinimumWidth, _box.Width), h));
         var position = DesktopAttacher.ScreenToParentClient(
             _desktopParent,
             (int)Math.Round(screen.X),
@@ -443,6 +579,7 @@ public class BoxWindow : IDisposable
             position.Y,
             Math.Max(1, (int)Math.Round(size.X)),
             Math.Max(1, (int)Math.Round(size.Y)));
+        UpdateRoundedCorners();
 
         if (_desktopParent != IntPtr.Zero)
         {
@@ -465,7 +602,8 @@ public class BoxWindow : IDisposable
 
     private void AnimateHeight(int to)
     {
-        int from = _box.Collapsed ? Math.Max(60, (int)_box.Height) : TitleBarHeight;
+        int from = _currentHeight;
+        _animTimer.Stop();
         if (from == to)
         {
             return;
@@ -503,7 +641,7 @@ public class BoxWindow : IDisposable
 
     private void OnMove(UIElement el, MouseEventArgs e)
     {
-        if (!_dragging) return;
+        if (!_dragging || _box.Locked) return;
         Point now = _root.PointToScreen(e.GetPosition(_root));
         Vector deviceDelta = now - _dragScreenStart;
         Vector logicalDelta = (_source.CompositionTarget?.TransformFromDevice ?? Matrix.Identity).Transform(deviceDelta);
@@ -534,11 +672,11 @@ public class BoxWindow : IDisposable
 
     private void OnResize(UIElement el, MouseEventArgs e)
     {
-        if (!_resizing) return;
+        if (!_resizing || _box.Locked) return;
         Point now = _root.PointToScreen(e.GetPosition(_root));
         Vector deviceDelta = now - _dragScreenStart;
         Vector logicalDelta = (_source.CompositionTarget?.TransformFromDevice ?? Matrix.Identity).Transform(deviceDelta);
-        _box.Width = Math.Max(120, _resizeStartW + logicalDelta.X);
+        _box.Width = Math.Max(MinimumWidth, _resizeStartW + logicalDelta.X);
         _box.Height = Math.Max(60, _resizeStartH + logicalDelta.Y);
         SetHeight(_box.Collapsed ? TitleBarHeight : Math.Max(60, (int)_box.Height));
     }
@@ -555,26 +693,27 @@ public class BoxWindow : IDisposable
 
     private void ShowItemMenu(BoxItem item)
     {
-        var menu = new ContextMenu();
+        var menu = CreateMenu();
         menu.Items.Add(MenuItem("打开", () => OpenItem(item)));
         menu.Items.Add(MenuItem("打开所在位置", () => OpenLocation(item)));
         menu.Items.Add(MenuItem("属性", () => ShowItemProperties(item)));
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("重命名", () => RenameItem(item)));
         menu.Items.Add(new Separator());
-        menu.Items.Add(MenuItem("从盒子移除", () =>
+        menu.Items.Add(MenuItem("移回桌面", () =>
         {
-            _box.Items.Remove(item);
-            IconCache.Clear();
-            Refresh();
-            RaiseChanged();
+            try { _fileTransfers?.ReturnToDirectory(_box, item, Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory)); }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "移回桌面未完成", MessageBoxButton.OK, MessageBoxImage.Warning); }
+            finally { RefreshContents(); RaiseChanged(); }
         }));
+        if (item.StoragePath == null)
+            menu.Items.Add(MenuItem("仅移除旧版引用（保留原文件）", () => { _box.Items.Remove(item); RefreshContents(); RaiseChanged(); }));
         menu.IsOpen = true;
     }
 
     private void ShowBoxMenu(FrameworkElement placement)
     {
-        var menu = new ContextMenu();
+        var menu = CreateMenu();
         menu.Items.Add(MenuItem(_box.Collapsed ? "展开" : "折叠", ToggleCollapse));
         menu.Items.Add(MenuItem("重命名盒子", RenameBox));
         menu.Items.Add(MenuItem(_box.Locked ? "解锁" : "锁定", ToggleLock));
@@ -589,10 +728,20 @@ public class BoxWindow : IDisposable
 
     private static MenuItem MenuItem(string header, Action onClick)
     {
-        var mi = new MenuItem { Header = header };
+        var mi = new MenuItem { Header = header, Padding = new Thickness(10, 6, 18, 6) };
         mi.Click += (_, _) => onClick();
         return mi;
     }
+
+    private static ContextMenu CreateMenu() => new()
+    {
+        FontFamily = new FontFamily("Segoe UI, Microsoft YaHei UI"),
+        FontSize = 13,
+        Padding = new Thickness(4),
+        Background = UiTheme.Brush("#FAFAFD"),
+        Foreground = UiTheme.Ink,
+        BorderBrush = UiTheme.Brush("#DADFEB"),
+    };
 
     private void RenameItem(BoxItem item)
     {
@@ -667,15 +816,6 @@ public class BoxWindow : IDisposable
         }
     }
 
-    private string? ResolveDataPath(string? path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return null;
-        }
-        return Path.IsPathFullyQualified(path) ? path : Path.GetFullPath(path, _dataDir);
-    }
-
     private void RaiseChanged() => Changed?.Invoke(this);
 
     private const int WM_SIZE = 0x0005;
@@ -687,11 +827,23 @@ public class BoxWindow : IDisposable
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
+        // WM_SIZE / WM_DPICHANGED / WM_DPICHANGED_AFTERPARENT: coalesce until WPF
+        // has processed the new layout and scale. Never consume these messages.
+        if ((msg == WM_SIZE || msg == 0x02E0 || msg == 0x02E3) && !_regionUpdatePending && !_disposed)
+        {
+            _regionUpdatePending = true;
+            _source.Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _regionUpdatePending = false;
+                UpdateRoundedCorners();
+            }));
+        }
         // 抵抗「显示桌面 / Win+D」的最小化：延迟恢复 + 重新置底，避免与最小化竞争
         if (msg == WM_SIZE && wParam.ToInt64() == SIZE_MINIMIZED)
         {
             _source.Dispatcher.BeginInvoke(new Action(() =>
             {
+                if (_disposed) return;
                 ShowWindow(hwnd, SW_RESTORE);
                 if (_desktopParent == IntPtr.Zero)
                 {
@@ -717,8 +869,16 @@ public class BoxWindow : IDisposable
         RaiseChanged();
     }
 
+    /// <summary>Refresh after file moves without scheduling another save.</summary>
+    public void RefreshContents()
+    {
+        if (!_disposed) Refresh();
+    }
+
     public void Dispose()
     {
+        if (_disposed) return;
+        _disposed = true;
         _animTimer.Stop();
         _source.Dispose();
     }

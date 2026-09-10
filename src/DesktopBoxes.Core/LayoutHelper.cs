@@ -6,7 +6,7 @@ namespace DesktopBoxes.Core;
 public static class LayoutHelper
 {
     /// <summary>标题栏高度（保证标题栏始终可见、可抓取）。</summary>
-    public const double TitleBarHeight = 28;
+    public const double TitleBarHeight = 42;
 
     /// <summary>水平方向至少保留可见的宽度（保证能抓住标题栏拖回）。</summary>
     public const double MinVisibleWidth = 150;

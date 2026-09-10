@@ -11,7 +11,7 @@ public class LayoutHelperTests
         var box = new Box { X = 5000, Y = 5000, Width = 300, Height = 240 };
         LayoutHelper.ClampToVisible(box, 0, 0, 1920, 1080);
         Assert.Equal(1920 - LayoutHelper.MinVisibleWidth, box.X); // 1770：左侧留 150px 可见
-        Assert.Equal(1080 - LayoutHelper.TitleBarHeight, box.Y);  // 1052：标题栏可见
+        Assert.Equal(1080 - LayoutHelper.TitleBarHeight, box.Y);  // 完整标题栏可见
     }
 
     [Fact]

@@ -62,7 +62,11 @@ public static class IconCache
         var dv = new DrawingVisual();
         using (var dc = dv.RenderOpen())
         {
-            dc.DrawRectangle(Brushes.Gray, new Pen(Brushes.DimGray, 1), new Rect(0, 0, 32, 32));
+            dc.DrawRoundedRectangle(UiTheme.Brush("#DADFF3"), null, new Rect(5, 2, 22, 28), 3, 3);
+            var pen = new Pen(UiTheme.Brush("#818BB3"), 2);
+            dc.DrawLine(pen, new Point(10, 12), new Point(22, 12));
+            dc.DrawLine(pen, new Point(10, 17), new Point(22, 17));
+            dc.DrawLine(pen, new Point(10, 22), new Point(18, 22));
         }
         var rtb = new RenderTargetBitmap(32, 32, 96, 96, PixelFormats.Pbgra32);
         rtb.Render(dv);

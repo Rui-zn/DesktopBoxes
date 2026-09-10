@@ -8,6 +8,9 @@ public class BoxItem
     /// <summary>绝对路径。</summary>
     public string Path { get; set; } = "";
 
+    /// <summary>盒子托管文件相对于数据目录的路径；null 表示旧版的外部引用。</summary>
+    public string? StoragePath { get; set; }
+
     public ItemKind Kind { get; set; }
 
     /// <summary>显示名（可自定义，默认取文件名）。</summary>

@@ -25,6 +25,8 @@ public class BoxStoreTests
                     Width = 300,
                     Height = 240,
                     Collapsed = true,
+                    Locked = true,
+                    CornerRadius = 24,
                     Items =
                     {
                         new BoxItem { Path = @"C:\Windows\System32\notepad.exe", Kind = ItemKind.Exe, DisplayName = "记事本" },
@@ -38,6 +40,8 @@ public class BoxStoreTests
             Assert.Single(loaded);
             Assert.Equal("工具", loaded[0].Name);
             Assert.True(loaded[0].Collapsed);
+            Assert.True(loaded[0].Locked);
+            Assert.Equal(24, loaded[0].CornerRadius);
             Assert.Single(loaded[0].Items);
             Assert.Equal("记事本", loaded[0].Items[0].DisplayName);
         }
