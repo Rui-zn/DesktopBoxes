@@ -16,6 +16,7 @@ public partial class App : System.Windows.Application
 {
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private const string RunValueName = "DesktopBoxes";
+    private const string BackgroundArgument = "--background";
 
     private System.Threading.Mutex? _mutex;
     private System.Windows.Forms.NotifyIcon? _tray;
@@ -36,6 +37,7 @@ public partial class App : System.Windows.Application
     {
         ShutdownMode = ShutdownMode.OnExplicitShutdown;
         base.OnStartup(e);
+        bool startInBackground = e.Args.Contains(BackgroundArgument, StringComparer.OrdinalIgnoreCase);
 
         if (e.Args.Contains("--spike"))
         {
@@ -104,7 +106,15 @@ public partial class App : System.Windows.Application
         }
 
         SetupTray();
-        SetupMaster();
+        SetupMaster(showOnStartup: !startInBackground);
+        try
+        {
+            RefreshAutoStartCommandIfEnabled();
+        }
+        catch (Exception ex)
+        {
+            LogError("auto-start-migration", ex);
+        }
 
         // 找不到桌面宿主时才启用普通顶层置底窗口的 Win+D 兜底。
         if (_usingDesktopFallback)
@@ -123,6 +133,7 @@ public partial class App : System.Windows.Application
         w.Changed += _ => ScheduleSave();
         w.DeleteRequested += OnDeleteRequested;
         w.NewBoxRequested += OnNewBoxRequested;
+        w.RenameRequested += OnRenameRequested;
         _windows.Add(w);
         _master?.RefreshList();
     }
@@ -245,7 +256,7 @@ public partial class App : System.Windows.Application
         int n = _windows.Count;
         var box = new Box
         {
-            Name = "新建盒子",
+            Name = BoxNames.CreateUnique(BoxNames.DefaultName, _windows.Select(window => window.Box)),
             X = 160 + (n % 6) * 40,
             Y = 160 + (n % 6) * 40,
             Width = 280,
@@ -256,6 +267,25 @@ public partial class App : System.Windows.Application
             CopyAppearance(_windows[0].Box, box);
         }
         CreateBoxWindow(box);
+        Save();
+    }
+
+    private void OnRenameRequested(BoxWindow window, string requestedName)
+    {
+        string name = BoxNames.Normalize(requestedName);
+        if (!BoxNames.IsAvailable(_windows.Select(item => item.Box), name, window.Box.Id))
+        {
+            System.Windows.MessageBox.Show(
+                $"已经存在名为“{name}”的盒子，请使用其他名称。",
+                "盒子名称重复",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        window.Box.Name = name;
+        window.RefreshView();
+        _master?.RefreshList();
         Save();
     }
 
@@ -350,7 +380,7 @@ public partial class App : System.Windows.Application
         }
     }
 
-    private void SetupMaster()
+    private void SetupMaster(bool showOnStartup)
     {
         _master = new MasterWindow(
             _windows,
@@ -358,11 +388,15 @@ public partial class App : System.Windows.Application
             onChanged: Save,
             onNewBox: OnNewBoxRequested,
             onDeleteBox: OnDeleteRequested,
+            onRenameBox: OnRenameRequested,
             isAutoStartEnabled: IsAutoStartEnabled,
             setAutoStart: SetAutoStart,
             changeDataDirectory: ChangeDataDirectory,
             isExiting: () => _exiting);
-        _master.Show();
+        if (showOnStartup)
+        {
+            _master.Show();
+        }
     }
 
     private void ShowMaster()
@@ -401,6 +435,23 @@ public partial class App : System.Windows.Application
     {
         using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKeyPath);
         return key?.GetValue(RunValueName) != null;
+    }
+
+    private static void RefreshAutoStartCommandIfEnabled()
+    {
+        using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(RunKeyPath);
+        string? existing = key?.GetValue(RunValueName) as string;
+        string? expected = AutoStartCommand();
+        if (existing != null && expected != null && !string.Equals(existing, expected, StringComparison.Ordinal))
+        {
+            SetAutoStart(true);
+        }
+    }
+
+    private static string? AutoStartCommand()
+    {
+        string? exe = Environment.ProcessPath;
+        return string.IsNullOrEmpty(exe) ? null : $"\"{exe}\" {BackgroundArgument}";
     }
 
     private void ChangeDataDirectory()
@@ -551,10 +602,10 @@ public partial class App : System.Windows.Application
         using var key = Microsoft.Win32.Registry.CurrentUser.CreateSubKey(RunKeyPath, true);
         if (enabled)
         {
-            string? exe = Environment.ProcessPath;
-            if (!string.IsNullOrEmpty(exe))
+            string? command = AutoStartCommand();
+            if (command != null)
             {
-                key.SetValue(RunValueName, $"\"{exe}\"");
+                key.SetValue(RunValueName, command);
             }
         }
         else

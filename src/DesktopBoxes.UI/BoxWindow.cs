@@ -83,6 +83,7 @@ public class BoxWindow : IDisposable
     public event Action<BoxWindow>? Changed;
     public event Action<BoxWindow>? DeleteRequested;
     public event Action? NewBoxRequested;
+    public event Action<BoxWindow, string>? RenameRequested;
 
     public BoxWindow(Box box, string dataDir, IntPtr desktopParent = default, BoxFileTransfers? fileTransfers = null)
     {
@@ -748,9 +749,7 @@ public class BoxWindow : IDisposable
         var dlg = new RenameDialog("重命名盒子", _box.Name);
         if (dlg.ShowDialog() == true && !string.IsNullOrWhiteSpace(dlg.Value))
         {
-            _box.Name = dlg.Value.Trim();
-            Refresh();
-            RaiseChanged();
+            RenameRequested?.Invoke(this, dlg.Value);
         }
     }
 

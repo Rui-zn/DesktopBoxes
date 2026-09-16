@@ -69,6 +69,7 @@ public class BoxStore
                 foreach (var item in box.Items.Where(i => i.StoragePath != null))
                     item.Path = BoxFileTransfers.ResolveStoredPath(_dir, item.StoragePath!);
             }
+            BoxNames.EnsureUnique(loaded);
             boxes = loaded;
             return true;
         }
@@ -80,7 +81,7 @@ public class BoxStore
 
     private static void Normalize(Box box)
     {
-        if (string.IsNullOrWhiteSpace(box.Name)) box.Name = "新建盒子";
+        box.Name = BoxNames.Normalize(box.Name);
         if (!double.IsFinite(box.X)) box.X = 120;
         if (!double.IsFinite(box.Y)) box.Y = 120;
         box.Width = double.IsFinite(box.Width) ? Math.Clamp(box.Width, 120, 10000) : 260;
@@ -127,6 +128,8 @@ public class BoxStore
         {
             throw new IOException("配置文件损坏且无法备份，已拒绝覆盖原文件。");
         }
+
+        BoxNames.EnsureUnique(boxes);
 
         string tempFile = Path.Combine(_dir, $"boxes.{Guid.NewGuid():N}.tmp");
         try

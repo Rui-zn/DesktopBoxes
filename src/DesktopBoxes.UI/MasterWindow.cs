@@ -14,6 +14,7 @@ public class MasterWindow : Window
     private readonly Action _onChanged;
     private readonly Action _onNewBox;
     private readonly Action<BoxWindow> _onDeleteBox;
+    private readonly Action<BoxWindow, string> _onRenameBox;
     private readonly ListBox _list;
     private readonly TextBox _search = new();
     private readonly StackPanel _details = new();
@@ -25,7 +26,8 @@ public class MasterWindow : Window
     private readonly HashSet<BoxWindow> _subscriptions = new();
 
     public MasterWindow(IReadOnlyList<BoxWindow> windows, string dataDir, Action onChanged,
-        Action onNewBox, Action<BoxWindow> onDeleteBox, Func<bool> isAutoStartEnabled,
+        Action onNewBox, Action<BoxWindow> onDeleteBox, Action<BoxWindow, string> onRenameBox,
+        Func<bool> isAutoStartEnabled,
         Action<bool> setAutoStart, Action changeDataDirectory, Func<bool> isExiting)
     {
         _windows = windows;
@@ -33,6 +35,7 @@ public class MasterWindow : Window
         _onChanged = onChanged;
         _onNewBox = onNewBox;
         _onDeleteBox = onDeleteBox;
+        _onRenameBox = onRenameBox;
         UiTheme.Window(this);
         Title = "DesktopBoxes · 桌面空间";
         Width = 1000;
@@ -272,7 +275,7 @@ public class MasterWindow : Window
         var rename = UiTheme.Button("重命名", () =>
         {
             var dialog = new RenameDialog("重命名盒子", window.Box.Name) { Owner = this };
-            if (dialog.ShowDialog() == true) { window.Box.Name = dialog.Value.Trim(); window.RefreshView(); RefreshList(); }
+            if (dialog.ShowDialog() == true) { _onRenameBox(window, dialog.Value); RefreshList(); }
         });
         rename.Margin = new Thickness(0, 0, 4, 0);
         secondary.Children.Add(rename);

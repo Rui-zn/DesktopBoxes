@@ -146,4 +146,38 @@ public class BoxStoreTests
             if (Directory.Exists(dir)) Directory.Delete(dir, true);
         }
     }
+
+    [Fact]
+    public void Load_RenamesDuplicateBoxesIgnoringCaseAndWhitespace()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "desktopboxes-test-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(dir);
+            File.WriteAllText(
+                Path.Combine(dir, "boxes.json"),
+                """
+                [{"Name":" 工作 "},{"Name":"工作"},{"Name":"工作 (2)"},{"Name":"WORK"},{"Name":"work"}]
+                """);
+
+            var loaded = new BoxStore(dir).Load();
+
+            Assert.Equal(new[] { "工作", "工作 (3)", "工作 (2)", "WORK", "work (2)" }, loaded.Select(box => box.Name));
+        }
+        finally
+        {
+            if (Directory.Exists(dir)) Directory.Delete(dir, true);
+        }
+    }
+
+    [Fact]
+    public void BoxNames_CreateUniqueAndAvailabilityExcludeCurrentBox()
+    {
+        var first = new Box { Name = "Work" };
+        var boxes = new List<Box> { first, new() { Name = "新建盒子" } };
+
+        Assert.Equal("新建盒子 (2)", BoxNames.CreateUnique(" 新建盒子 ", boxes));
+        Assert.True(BoxNames.IsAvailable(boxes, " work ", first.Id));
+        Assert.False(BoxNames.IsAvailable(boxes, " WORK "));
+    }
 }

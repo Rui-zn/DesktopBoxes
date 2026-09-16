@@ -59,8 +59,15 @@ internal static class Program
         bool autoStartEnabled = false;
         int storageChangeRequests = 0;
         var master = new MasterWindow(windows, _output, () => { },
-            () => windows.Add(new BoxWindow(new Box { Name = "新建盒子", X = -20000, Y = -20000 }, _output, host.Handle)),
-            w => { w.Dispose(); windows.Remove(w); }, () => autoStartEnabled, enabled => autoStartEnabled = enabled,
+            () => windows.Add(new BoxWindow(new Box
+            {
+                Name = BoxNames.CreateUnique(BoxNames.DefaultName, windows.Select(window => window.Box)),
+                X = -20000,
+                Y = -20000,
+            }, _output, host.Handle)),
+            w => { w.Dispose(); windows.Remove(w); },
+            (w, name) => { w.Box.Name = name.Trim(); w.RefreshView(); },
+            () => autoStartEnabled, enabled => autoStartEnabled = enabled,
             () => storageChangeRequests++, () => true);
         try
         {
@@ -80,7 +87,11 @@ internal static class Program
             Click(master, "解锁全部位置");
             Assert(windows.All(w => !w.Box.Locked), "unlock all boxes");
             Click(master, "＋  新建盒子");
-            Assert(windows.Count == 4 && list.SelectedItem == windows[3], "new box selected");
+            Assert(windows.Count == 4 && list.SelectedItem == windows[3] && windows[3].Box.Name == "新建盒子", "new box selected");
+            Click(master, "＋  新建盒子");
+            Assert(windows.Count == 5 && windows[4].Box.Name == "新建盒子 (2)", "new boxes receive unique numeric suffixes");
+            Click(master, "删除盒子");
+            list.SelectedItem = windows[3];
             Click(master, "删除盒子");
             Assert(windows.Count == 3, "delete selected box callback");
             var dialog = new AppearanceDialog(data, _output, true);
@@ -182,7 +193,7 @@ internal static class Program
                 .Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "更改数据存储位置");
             changeStorage.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Assert(storageChangeRequests == 1, "dashboard requests data directory migration");
-            var empty = new MasterWindow(Array.Empty<BoxWindow>(), _output, () => { }, () => { }, _ => { }, () => false,
+            var empty = new MasterWindow(Array.Empty<BoxWindow>(), _output, () => { }, () => { }, _ => { }, (_, _) => { }, () => false,
                 _ => { }, () => { }, () => true);
             RenderWindow(empty, "dashboard-empty.png", 1000, 650);
             Assert(!FindButton(empty, "统一外观").IsEnabled, "empty dashboard disables bulk operations");
