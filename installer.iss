@@ -4,7 +4,7 @@
 ;   2) 用 Inno Setup (ISCC.exe) 编译本脚本，输出安装包到项目根目录
 #define MyAppName "桌面盒子 (DesktopBoxes)"
 #ifndef MyAppVersion
-  #define MyAppVersion "1.2.2"
+  #define MyAppVersion "1.2.3"
 #endif
 #define MyAppExeName "DesktopBoxes.App.exe"
 

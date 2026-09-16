@@ -31,7 +31,10 @@ public class BoxWindow : IDisposable
     private static DragSession? _fileDrag;
     private const string BoxDragFormat = "DesktopBoxes.FileMove.Session";
     public static bool IsFileDragActive => _fileDrag != null;
-    private sealed record DragSession(string Token, Box Box, BoxItem Item);
+    private sealed record DragSession(string Token, Box Box, BoxItem Item)
+    {
+        public bool SameBoxDropCompleted { get; set; }
+    }
     private readonly IntPtr _desktopParent;
 
     private readonly Border _root;
@@ -406,6 +409,7 @@ public class BoxWindow : IDisposable
             Cursor = Cursors.Hand,
             Focusable = true,
             ToolTip = $"{item.DisplayName}\n{item.Path}",
+            Tag = item,
         };
         System.Windows.Automation.AutomationProperties.SetName(border, item.DisplayName);
         void Highlight(bool active)
@@ -469,13 +473,14 @@ public class BoxWindow : IDisposable
 
     private DragDropEffects DropEffect(IDataObject data, DragDropEffects allowed, DragDropKeyStates keys)
     {
-        if (_fileTransfers == null || _fileTransfers.IsBusy || (allowed & DragDropEffects.Move) == 0 ||
+        if ((allowed & DragDropEffects.Move) == 0 ||
             (keys & (DragDropKeyStates.ControlKey | DragDropKeyStates.AltKey)) != 0) return DragDropEffects.None;
         try
         {
+            DragSession? session = ActiveDragSession(data);
+            if (session?.Box == _box && _box.Items.Contains(session.Item)) return DragDropEffects.Move;
+            if (_fileTransfers == null || _fileTransfers.IsBusy) return DragDropEffects.None;
             if (!data.GetDataPresent(DataFormats.FileDrop)) return DragDropEffects.None;
-            if (_fileDrag != null && Equals(data.GetData(BoxDragFormat), _fileDrag.Token) && _fileDrag.Box == _box)
-                return DragDropEffects.None;
             return DragDropEffects.Move;
         }
         catch { return DragDropEffects.None; }
@@ -483,6 +488,23 @@ public class BoxWindow : IDisposable
 
     private void ReceiveDrop(DragEventArgs e)
     {
+        DragSession? internalSession = ActiveDragSession(e.Data);
+        if (internalSession?.Box == _box && _box.Items.Contains(internalSession.Item) &&
+            DropEffect(e.Data, e.AllowedEffects, e.KeyStates) == DragDropEffects.Move)
+        {
+            internalSession.SameBoxDropCompleted = true;
+            e.Handled = true;
+            e.Effects = DragDropEffects.Move;
+            _root.BorderBrush = FrameBrush();
+            int insertionIndex = ReorderInsertionIndex(e);
+            if (BoxItemOrder.MoveToInsertionIndex(_box.Items, internalSession.Item, insertionIndex))
+            {
+                RefreshContents();
+                RaiseChanged();
+            }
+            return;
+        }
+
         bool accept = DropEffect(e.Data, e.AllowedEffects, e.KeyStates) == DragDropEffects.Move;
         e.Handled = true;
         // Optimized move: we move the file, so the source must NOT delete it again.
@@ -529,21 +551,54 @@ public class BoxWindow : IDisposable
     private static void SetDropEffect(IDataObject data, string format, DragDropEffects effect) =>
         data.SetData(format, new MemoryStream(BitConverter.GetBytes((int)effect)), false);
 
+    private static DragSession? ActiveDragSession(IDataObject data)
+    {
+        try
+        {
+            return _fileDrag != null && Equals(data.GetData(BoxDragFormat), _fileDrag.Token) ? _fileDrag : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private int ReorderInsertionIndex(DragEventArgs e)
+    {
+        Point position = e.GetPosition(_itemsWrap);
+        for (int index = 0; index < _itemsWrap.Children.Count; index++)
+        {
+            if (_itemsWrap.Children[index] is not FrameworkElement element || element.Tag is not BoxItem) continue;
+            Point topLeft = element.TranslatePoint(new Point(), _itemsWrap);
+            var bounds = new Rect(topLeft, element.RenderSize);
+            if (!bounds.Contains(position)) continue;
+            return index + (position.X >= bounds.Left + bounds.Width / 2 ? 1 : 0);
+        }
+        return _box.Items.Count;
+    }
+
     private void DragItem(FrameworkElement source, BoxItem item)
     {
         if (_fileTransfers == null || _fileTransfers.IsBusy || _fileDrag != null) return;
+        DragSession? session = null;
         try
         {
             _fileTransfers.ValidateForExport(item);
-            _fileDrag = new DragSession(Guid.NewGuid().ToString("N"), _box, item);
+            session = new DragSession(Guid.NewGuid().ToString("N"), _box, item);
+            _fileDrag = session;
             var data = new DataObject(DataFormats.FileDrop, new[] { item.Path });
             data.SetData(BoxDragFormat, _fileDrag.Token, false);
             SetDropEffect(data, "Preferred DropEffect", DragDropEffects.Move);
             DragDrop.DoDragDrop(source, data, DragDropEffects.Move);
-            _fileTransfers.CompleteExternalMove(_box, item);
+            if (!session.SameBoxDropCompleted) _fileTransfers.CompleteExternalMove(_box, item);
         }
         catch (Exception ex) { MessageBox.Show(ex.Message, "文件移动未完成", MessageBoxButton.OK, MessageBoxImage.Warning); }
-        finally { _fileDrag = null; RefreshContents(); RaiseChanged(); }
+        finally
+        {
+            _fileDrag = null;
+            RefreshContents();
+            if (session?.SameBoxDropCompleted != true) RaiseChanged();
+        }
     }
 
     private void ToggleCollapse()

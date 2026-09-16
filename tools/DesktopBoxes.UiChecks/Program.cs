@@ -1,4 +1,5 @@
 using System.IO;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -127,6 +128,7 @@ internal static class Program
             data.BackgroundImagePath = data.BackgroundColor = null;
             windows[0].RefreshAppearance();
             Render(boxVisual, "desktop-box.png", 320, 280, Brushes.Transparent);
+            CheckItemReorder(windows[0], data);
             var lockButton = Descendants<Button>(boxVisual).Single(b => System.Windows.Automation.AutomationProperties.GetAutomationId(b) == "BoxLockToggle");
             int changes = 0;
             windows[0].Changed += _ => changes++;
@@ -215,6 +217,68 @@ internal static class Program
         if (!condition) throw new InvalidOperationException(message);
         _checks++;
         Console.WriteLine($"PASS: {message}");
+    }
+
+    private static void CheckItemReorder(BoxWindow window, Box box)
+    {
+        BoxItem source = box.Items[0];
+        BoxItem target = box.Items[1];
+        BoxItem last = box.Items[2];
+        string token = Guid.NewGuid().ToString("N");
+        Type sessionType = typeof(BoxWindow).GetNestedType("DragSession", BindingFlags.NonPublic)!;
+        object session = sessionType.GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
+            .Single(constructor => constructor.GetParameters().Length == 3)
+            .Invoke(new object[] { token, box, source });
+        FieldInfo sessionField = typeof(BoxWindow).GetField("_fileDrag", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var data = new DataObject();
+        data.SetData("DesktopBoxes.FileMove.Session", token, false);
+        int changes = 0;
+        Action<BoxWindow> changed = _ => changes++;
+        window.Changed += changed;
+        sessionField.SetValue(null, session);
+        try
+        {
+            MethodInfo effectMethod = typeof(BoxWindow).GetMethod("DropEffect", BindingFlags.Instance | BindingFlags.NonPublic)!;
+            Assert((DragDropEffects)effectMethod.Invoke(window, new object[]
+            {
+                data,
+                DragDropEffects.Move,
+                DragDropKeyStates.LeftMouseButton,
+            })! == DragDropEffects.Move, "same-box item drag advertises reorder");
+            Assert((DragDropEffects)effectMethod.Invoke(window, new object[]
+            {
+                data,
+                DragDropEffects.Move,
+                DragDropKeyStates.ControlKey,
+            })! == DragDropEffects.None, "Ctrl does not reorder same-box items");
+
+            var wrap = (WrapPanel)typeof(BoxWindow).GetField("_itemsWrap", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
+            var targetElement = (FrameworkElement)wrap.Children[1];
+            Point targetTopLeft = targetElement.TranslatePoint(new Point(), wrap);
+            var dropPoint = new Point(
+                targetTopLeft.X + targetElement.ActualWidth * 0.75,
+                targetTopLeft.Y + targetElement.ActualHeight / 2);
+            var dragArgsConstructor = typeof(DragEventArgs).GetConstructors(BindingFlags.Instance | BindingFlags.NonPublic)
+                .Single(constructor => constructor.GetParameters().Length == 5);
+            var args = (DragEventArgs)dragArgsConstructor.Invoke(new object[]
+            {
+                data,
+                DragDropKeyStates.LeftMouseButton,
+                DragDropEffects.Move,
+                wrap,
+                dropPoint,
+            });
+            args.RoutedEvent = DragDrop.PreviewDropEvent;
+            typeof(BoxWindow).GetMethod("ReceiveDrop", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(window, new object[] { args });
+
+            Assert(box.Items.SequenceEqual(new[] { target, source, last }), "same-box drop persists the new item order");
+            Assert(args.Handled && args.Effects == DragDropEffects.Move && changes == 1, "same-box reorder completes without moving files");
+        }
+        finally
+        {
+            sessionField.SetValue(null, null);
+            window.Changed -= changed;
+        }
     }
 
     [DllImport("user32.dll", SetLastError = true)]
