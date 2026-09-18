@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using DesktopBoxes.Core;
 
@@ -268,6 +269,37 @@ public class MasterWindow : Window
         var metadata = UiTheme.Text($"{window.Box.Items.Count} 个项目 · {(window.Box.Collapsed ? "已折叠" : "已展开")}", 12, UiTheme.Muted);
         metadata.Margin = new Thickness(0, 4, 0, 12);
         _details.Children.Add(metadata);
+        _details.Children.Add(UiTheme.Heading("尺寸布局"));
+        bool hasLayoutPreset = BoxLayoutPreset.IsActive(window.Box);
+        var layoutStatus = hasLayoutPreset
+            ? $"当前：{window.Box.PresetColumns} 列 × {window.Box.PresetRows} 行"
+            : "当前：自定义";
+        string layoutDescription = window.Box.Locked
+            ? $"{layoutStatus} · 解锁后可调整"
+            : hasLayoutPreset
+                ? $"{layoutStatus} · 图标大小变化时自动保持"
+                : $"{layoutStatus} · 可拖动右下角调整";
+        var layoutInfo = UiTheme.Text(layoutDescription, 11, UiTheme.Muted);
+        layoutInfo.Margin = new Thickness(0, 4, 0, 8);
+        _details.Children.Add(layoutInfo);
+        var layouts = new UniformGrid { Columns = 2, Margin = new Thickness(0, 0, 0, 8) };
+        foreach ((int columns, int rows) in BoxLayoutPreset.Supported)
+        {
+            bool selected = window.Box.PresetColumns == columns && window.Box.PresetRows == rows;
+            var button = UiTheme.Button($"{columns} × {rows}", () => SetLayout(window, columns, rows), selected);
+            button.Margin = new Thickness(0, 0, 6, 6);
+            button.IsEnabled = !window.Box.Locked;
+            button.ToolTip = $"持续保持 {columns} 列 × {rows} 行";
+            System.Windows.Automation.AutomationProperties.SetName(button, $"尺寸 {columns} 列 × {rows} 行");
+            layouts.Children.Add(button);
+        }
+        var custom = UiTheme.Button("自定义", () => SetCustomLayout(window), !hasLayoutPreset);
+        custom.Margin = new Thickness(0, 0, 6, 6);
+        custom.IsEnabled = !window.Box.Locked;
+        custom.ToolTip = "保留当前宽高，不再随图标大小自动调整";
+        System.Windows.Automation.AutomationProperties.SetName(custom, "尺寸 自定义");
+        layouts.Children.Add(custom);
+        _details.Children.Add(layouts);
         AddDetailButton("调整外观", () => ShowAppearance(window), true);
         var secondary = new Grid { Margin = new Thickness(0, 0, 0, 8) };
         secondary.ColumnDefinitions.Add(new ColumnDefinition());
@@ -300,6 +332,20 @@ public class MasterWindow : Window
         var button = UiTheme.Button(text, action, primary);
         button.Margin = new Thickness(0, 0, 0, 8);
         _details.Children.Add(button);
+    }
+
+    private void SetLayout(BoxWindow window, int columns, int rows)
+    {
+        if (!window.ApplyLayoutPreset(columns, rows)) return;
+        RefreshList();
+        _onChanged();
+    }
+
+    private void SetCustomLayout(BoxWindow window)
+    {
+        if (!window.UseCustomLayout()) return;
+        RefreshList();
+        _onChanged();
     }
 
     private void ShowAppearance(BoxWindow window)

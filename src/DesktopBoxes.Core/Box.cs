@@ -12,6 +12,10 @@ public class Box
     public double Width { get; set; } = 260;
     public double Height { get; set; } = 220;
 
+    // 0 / 0 表示自定义尺寸；非零值表示持续保持“列 × 行”的尺寸预设。
+    public int PresetColumns { get; set; }
+    public int PresetRows { get; set; }
+
     public bool Collapsed { get; set; }
 
     public bool Locked { get; set; }

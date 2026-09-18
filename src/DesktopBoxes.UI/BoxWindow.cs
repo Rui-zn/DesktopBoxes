@@ -20,7 +20,7 @@ public class BoxWindow : IDisposable
 {
     private const int TitleBarHeight = (int)LayoutHelper.TitleBarHeight;
     private const int AnimDurationMs = 160;
-    private const int MinimumWidth = 220;
+    private const int MinimumWidth = (int)BoxLayoutPreset.MinimumWidth;
 
     private int IconSize => _box.IconSize is >= 24 and <= 96 ? _box.IconSize : 32;
 
@@ -94,6 +94,7 @@ public class BoxWindow : IDisposable
         _dataDir = dataDir;
         _fileTransfers = fileTransfers;
         _desktopParent = desktopParent;
+        BoxLayoutPreset.RefreshSize(_box);
         _box.Width = Math.Max(MinimumWidth, _box.Width);
 
         _root = new Border
@@ -294,6 +295,7 @@ public class BoxWindow : IDisposable
 
     private void ApplyAppearance()
     {
+        BoxLayoutPreset.RefreshSize(_box);
         _textBrush = BoxPreview.Parse(_box.TextColor, UiTheme.BoxText);
 
         _root.Background = BoxPreview.BackgroundBrush(_box, _dataDir);
@@ -318,6 +320,7 @@ public class BoxWindow : IDisposable
         _titleBar.Background.Opacity = opacity;
 
         Refresh();
+        ApplySize();
         UpdateRoundedCorners();
     }
 
@@ -721,6 +724,8 @@ public class BoxWindow : IDisposable
         Point now = _root.PointToScreen(e.GetPosition(_root));
         Vector deviceDelta = now - _dragScreenStart;
         Vector logicalDelta = (_source.CompositionTarget?.TransformFromDevice ?? Matrix.Identity).Transform(deviceDelta);
+        if (Math.Abs(logicalDelta.X) < 0.5 && Math.Abs(logicalDelta.Y) < 0.5) return;
+        BoxLayoutPreset.Clear(_box);
         _box.Width = Math.Max(MinimumWidth, _resizeStartW + logicalDelta.X);
         _box.Height = Math.Max(60, _resizeStartH + logicalDelta.Y);
         SetHeight(_box.Collapsed ? TitleBarHeight : Math.Max(60, (int)_box.Height));
@@ -763,12 +768,39 @@ public class BoxWindow : IDisposable
         menu.Items.Add(MenuItem("重命名盒子", RenameBox));
         menu.Items.Add(MenuItem(_box.Locked ? "解锁" : "锁定", ToggleLock));
         menu.Items.Add(MenuItem("盒子外观…", ShowAppearance));
+        menu.Items.Add(CreateLayoutMenu());
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("新建盒子", () => NewBoxRequested?.Invoke()));
         menu.Items.Add(new Separator());
         menu.Items.Add(MenuItem("删除盒子", () => DeleteRequested?.Invoke(this)));
         menu.PlacementTarget = placement;
         menu.IsOpen = true;
+    }
+
+    private MenuItem CreateLayoutMenu()
+    {
+        var layout = new MenuItem
+        {
+            Header = "盒子尺寸",
+            Padding = new Thickness(10, 6, 18, 6),
+            ToolTip = _box.Locked ? "请先解锁盒子，再调整尺寸。" : "持续保持指定的图标列数和行数",
+        };
+        foreach ((int columns, int rows) in BoxLayoutPreset.Supported)
+        {
+            var preset = MenuItem($"{columns} 列 × {rows} 行", () => ApplyLayoutPreset(columns, rows));
+            preset.IsCheckable = true;
+            preset.IsChecked = _box.PresetColumns == columns && _box.PresetRows == rows;
+            preset.IsEnabled = !_box.Locked;
+            layout.Items.Add(preset);
+        }
+
+        layout.Items.Add(new Separator());
+        var custom = MenuItem("自定义", () => UseCustomLayout());
+        custom.IsCheckable = true;
+        custom.IsChecked = !BoxLayoutPreset.IsActive(_box);
+        custom.IsEnabled = !_box.Locked;
+        layout.Items.Add(custom);
+        return layout;
     }
 
     private static MenuItem MenuItem(string header, Action onClick)
@@ -903,6 +935,23 @@ public class BoxWindow : IDisposable
     {
         ApplyAppearance();
         RaiseChanged();
+    }
+
+    /// <summary>持续保持指定的图标列数和行数；锁定状态下拒绝修改。</summary>
+    public bool ApplyLayoutPreset(int columns, int rows)
+    {
+        if (_box.Locked || !BoxLayoutPreset.Apply(_box, columns, rows)) return false;
+        ApplySize();
+        RaiseChanged();
+        return true;
+    }
+
+    /// <summary>保留当前宽高，但停止在图标大小变化时自动调整。</summary>
+    public bool UseCustomLayout()
+    {
+        if (_box.Locked || !BoxLayoutPreset.Clear(_box)) return false;
+        RaiseChanged();
+        return true;
     }
 
     /// <summary>仅重绘视图（标题/图标/锁定态）并触发保存。</summary>

@@ -30,6 +30,8 @@ public class BoxStoreTests
                     Y = 20,
                     Width = 300,
                     Height = 240,
+                    PresetColumns = 3,
+                    PresetRows = 2,
                     Collapsed = true,
                     Locked = true,
                     CornerRadius = 24,
@@ -47,6 +49,10 @@ public class BoxStoreTests
             Assert.Equal("工具", loaded[0].Name);
             Assert.True(loaded[0].Collapsed);
             Assert.True(loaded[0].Locked);
+            Assert.Equal(3, loaded[0].PresetColumns);
+            Assert.Equal(2, loaded[0].PresetRows);
+            Assert.Equal(280, loaded[0].Width);
+            Assert.Equal(222, loaded[0].Height);
             Assert.Equal(24, loaded[0].CornerRadius);
             Assert.Single(loaded[0].Items);
             Assert.Equal("记事本", loaded[0].Items[0].DisplayName);
@@ -127,7 +133,7 @@ public class BoxStoreTests
             File.WriteAllText(
                 Path.Combine(dir, "boxes.json"),
                 """
-                [{"Name":"","Width":-50,"Height":999999,"IconSize":7,"CornerRadius":-1,"Opacity":500,"Items":null}]
+                [{"Name":"","Width":-50,"Height":999999,"IconSize":7,"PresetColumns":3,"PresetRows":99,"CornerRadius":-1,"Opacity":500,"Items":null}]
                 """);
 
             var loaded = new BoxStore(dir).Load();
@@ -137,6 +143,8 @@ public class BoxStoreTests
             Assert.Equal(120, loaded[0].Width);
             Assert.Equal(10000, loaded[0].Height);
             Assert.Equal(32, loaded[0].IconSize);
+            Assert.Equal(0, loaded[0].PresetColumns);
+            Assert.Equal(0, loaded[0].PresetRows);
             Assert.Equal(0, loaded[0].CornerRadius);
             Assert.Equal(100, loaded[0].Opacity);
             Assert.Empty(loaded[0].Items);

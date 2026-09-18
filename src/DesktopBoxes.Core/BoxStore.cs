@@ -87,6 +87,7 @@ public class BoxStore
         box.Width = double.IsFinite(box.Width) ? Math.Clamp(box.Width, 120, 10000) : 260;
         box.Height = double.IsFinite(box.Height) ? Math.Clamp(box.Height, 60, 10000) : 220;
         box.IconSize = box.IconSize is 32 or 48 or 64 ? box.IconSize : 32;
+        BoxLayoutPreset.Normalize(box);
         box.CornerRadius = Math.Clamp(box.CornerRadius, 0, 100);
         box.Opacity = Math.Clamp(box.Opacity, 0, 100);
 

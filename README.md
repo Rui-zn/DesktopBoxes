@@ -7,7 +7,7 @@
 ## 功能
 
 - 保留 Windows 系统桌面图标；盒子挂接到 WorkerW/Progman 桌面层，位于桌面图标之上、普通窗口之下，`Win+D` 后仍在
-- 新建 / 删除 / 重命名盒子；盒子名称全局唯一，新建时自动添加数字后缀；盒子内图标可拖动排序；拖动标题栏移动、拖右下角缩放
+- 新建 / 删除 / 重命名盒子；盒子名称全局唯一，新建时自动添加数字后缀；盒子内图标可拖动排序；支持持续保持 2×2、3×2、4×2、4×3 的尺寸预设，也可拖动右下角自定义缩放
 - 所有盒子使用圆角边框（含 WorkerW 桌面模式），可选小 / 标准 / 大圆角；旧直角配置自动按圆角显示
 - 标题栏常驻独立锁按钮：点击锁定 / 再次点击解锁，固定当前盒子的位置和大小；折叠、打开文件不受影响，锁定状态自动保存
 - 双向移动 `.exe` / `.lnk` / 文件夹 / 文件：拖入后移入盒子专用目录，原位置不再显示；拖回桌面或资源管理器后从盒子移除；双击启动 / 打开
@@ -28,7 +28,7 @@
 
 ![外观编辑器](docs/images/appearance.png)
 
-截图使用演示数据，展示的是 1.2.3 界面。
+截图使用演示数据，展示的是 1.2.4 界面。
 
 ## 运行
 
@@ -67,7 +67,7 @@ dotnet build DesktopBoxes.sln -c Release --no-restore
 dotnet test DesktopBoxes.sln -c Release --no-build --no-restore
 
 # 同时生成安装器输入目录与带 portable 标记的便携包
-.\build-release.ps1 -Version 1.2.3
+.\build-release.ps1 -Version 1.2.4
 ```
 
 `artifacts\installer\` 中生成一个自包含的 `DesktopBoxes.App.exe`，可用作 Inno Setup 输入；`artifacts\DesktopBoxes-portable-win-x64-<版本>.zip` 是带便携模式标记的压缩包。旧版本的独立 EXE / ZIP 不会自动更新。构建脚本会拒绝清理含 `data\` 的输出目录，避免误删便携模式的真实用户文件。

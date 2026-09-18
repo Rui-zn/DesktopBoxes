@@ -83,6 +83,29 @@ internal static class Program
             Assert(list.Items.Count == 0, "search empty state");
             RenderWindow(master, "search-empty.png", 1000, 650);
             search.Clear();
+            var threeByTwo = Descendants<Button>((DependencyObject)master.Content)
+                .Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "尺寸 3 列 × 2 行");
+            threeByTwo.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            Pump();
+            Assert(data.PresetColumns == 3 && data.PresetRows == 2 && data.Width == 328 && data.Height == 254,
+                "dashboard applies persistent 3 by 2 layout preset");
+            data.IconSize = 64;
+            windows[0].RefreshAppearance();
+            Pump();
+            Assert(data.PresetColumns == 3 && data.PresetRows == 2 && data.Width == 376 && data.Height == 286,
+                "layout preset survives icon size changes");
+            var customLayout = Descendants<Button>((DependencyObject)master.Content)
+                .Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "尺寸 自定义");
+            customLayout.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
+            double customWidth = data.Width;
+            double customHeight = data.Height;
+            data.IconSize = 48;
+            windows[0].RefreshAppearance();
+            Assert(data.PresetColumns == 0 && data.PresetRows == 0 && data.Width == customWidth && data.Height == customHeight,
+                "custom layout stops automatic resizing");
+            var restoreThreeByTwo = Descendants<Button>((DependencyObject)master.Content)
+                .Single(button => System.Windows.Automation.AutomationProperties.GetName(button) == "尺寸 3 列 × 2 行");
+            restoreThreeByTwo.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Click(master, "锁定全部位置");
             Assert(windows.All(w => w.Box.Locked), "mixed lock state locks all boxes");
             Click(master, "解锁全部位置");
@@ -134,6 +157,8 @@ internal static class Program
             windows[0].Changed += _ => changes++;
             lockButton.RaiseEvent(new RoutedEventArgs(ButtonBase.ClickEvent));
             Assert(data.Locked && !windows[1].Box.Locked && !windows[2].Box.Locked, "header lock affects only this box");
+            Assert(!windows[0].ApplyLayoutPreset(4, 3) && data.PresetColumns == 3 && data.PresetRows == 2,
+                "locked box rejects layout preset changes");
             Assert(lockButton.IsVisible && System.Windows.Automation.AutomationProperties.GetName(lockButton) == "解锁盒子", "locked button remains available to unlock");
             Render(boxVisual, "desktop-locked.png", 320, 280, Brushes.Transparent);
             var titleBar = Descendants<Border>(boxVisual).Single(b => b.Child is DockPanel);
@@ -177,6 +202,7 @@ internal static class Program
                 Pump();
                 CheckRoundedRegion(fallbackWindow, "fallback top-level box");
             }
+            CheckOverflowingLayoutPreset(host.Handle);
             Render((FrameworkElement)HwndSource.FromHwnd(windows[2].Handle).RootVisual, "desktop-empty.png", 280, 220, Brushes.Transparent);
             var rename = new RenameDialog("重命名盒子", "工作与灵感");
             RenderWindow(rename, "rename.png", 404, 220);
@@ -279,6 +305,39 @@ internal static class Program
             sessionField.SetValue(null, null);
             window.Changed -= changed;
         }
+    }
+
+    private static void CheckOverflowingLayoutPreset(IntPtr desktopParent)
+    {
+        var box = new Box
+        {
+            Name = "三列布局测试",
+            X = -20000,
+            Y = -20000,
+            IconSize = 48,
+            PresetColumns = 3,
+            PresetRows = 2,
+            Items = Enumerable.Range(1, 7)
+                .Select(index => new BoxItem
+                {
+                    DisplayName = $"项目 {index}",
+                    Path = Environment.ProcessPath!,
+                })
+                .ToList(),
+        };
+        using var window = new BoxWindow(box, _output, desktopParent);
+        Pump();
+        var root = (FrameworkElement)HwndSource.FromHwnd(window.Handle).RootVisual;
+        var wrap = Descendants<WrapPanel>(root).Single();
+        var scroll = Descendants<ScrollViewer>(root).Single();
+        var positions = wrap.Children.Cast<FrameworkElement>()
+            .Select(element => element.TranslatePoint(new Point(), wrap))
+            .ToList();
+        Assert(positions.Take(3).All(point => Math.Abs(point.Y - positions[0].Y) < 0.5) &&
+               positions[3].Y > positions[0].Y && positions[6].Y > positions[3].Y,
+            "3 by 2 preset keeps exactly three columns when content overflows");
+        Assert(scroll.ComputedVerticalScrollBarVisibility == Visibility.Visible,
+            "3 by 2 preset scrolls after two visible rows");
     }
 
     [DllImport("user32.dll", SetLastError = true)]
