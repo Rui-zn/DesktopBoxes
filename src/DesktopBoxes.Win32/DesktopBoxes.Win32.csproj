@@ -5,8 +5,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Vanara.PInvoke.User32" Version="5.0.7" />
-    <PackageReference Include="Vanara.Windows.Shell" Version="5.0.7" />
+    <PackageReference Include="Vanara.PInvoke.User32" Version="5.0.8" />
+    <PackageReference Include="Vanara.Windows.Shell" Version="5.0.8" />
   </ItemGroup>
 
   <PropertyGroup>
