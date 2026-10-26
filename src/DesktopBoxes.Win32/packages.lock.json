@@ -4,189 +4,189 @@
     "net8.0-windows7.0": {
       "Vanara.PInvoke.User32": {
         "type": "Direct",
-        "requested": "[5.0.7, )",
-        "resolved": "5.0.7",
-        "contentHash": "ADD4kdBIMKxmS6zxnMu9jY+ii6TfgWRK2e6p9EOYqU3LCHzlUxfx4zR0T9bsru7/qAMB7+lrwddKq1ZGAoNJoQ==",
+        "requested": "[5.0.8, )",
+        "resolved": "5.0.8",
+        "contentHash": "9usOK/ZNraX3cyWPTly4A9DDYePWbmuuqLXXN/FDSWvQb3Sv8siFYMycIqaO50pHlhlSz/wFpiN6m2aEep3rmw==",
         "dependencies": {
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.Gdi32": "5.0.7",
-          "Vanara.PInvoke.Kernel32": "5.0.7"
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.Gdi32": "5.0.8",
+          "Vanara.PInvoke.Kernel32": "5.0.8"
         }
       },
       "Vanara.Windows.Shell": {
         "type": "Direct",
-        "requested": "[5.0.7, )",
-        "resolved": "5.0.7",
-        "contentHash": "13qnXMbR0rfq24IyTa0QXwHfrL6a4DdKbwoG5OXbv/1RDVc8SYvWhSfn4DG0Bd6Fq7i+YqiwidJk0Mr22QUemA==",
+        "requested": "[5.0.8, )",
+        "resolved": "5.0.8",
+        "contentHash": "sLmhWn0aEV5dPbQuzqGYhDpvtZeBEECsPuTjMdyeQIqoM9Y42sHBzVzMEhhdeQnTW6efHPdSy4CpBBxwGxN7qw==",
         "dependencies": {
-          "System.Configuration.ConfigurationManager": "10.0.2",
-          "System.Drawing.Common": "10.0.2",
-          "System.Security.Permissions": "10.0.2",
-          "Vanara.Core": "5.0.7",
-          "Vanara.Windows.Shell.Common": "5.0.7"
+          "System.Configuration.ConfigurationManager": "10.0.12",
+          "System.Drawing.Common": "10.0.12",
+          "System.Security.Permissions": "10.0.12",
+          "Vanara.Core": "5.0.8",
+          "Vanara.Windows.Shell.Common": "5.0.8"
         }
       },
       "Microsoft.Win32.SystemEvents": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "1G4BdeFwc8E95MpwtR7pO4rEh2YCG/o5gqcOszdQRGrWX1ayHTZtho3xPuYZTbBxKb/3kQHjL3b4nQeNGvbM9g=="
+        "resolved": "10.0.12",
+        "contentHash": "kdj5cqOwgZCMltEhQ4+WVUoFkMHG08EJfy1MDyS9H+FBg66vTTFyX8YcNl8IQh5wRQv79P+iduQgDGY8ucBR+w=="
       },
       "System.Configuration.ConfigurationManager": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "UpBPpVzF+xbB3GsBrraPvlYCwUiOhs+RLxnTMKLqDs2gNNaAtxQRlKjXfMV3zxE+hiQkGId5olZ+9tE6xXHdwQ==",
+        "resolved": "10.0.12",
+        "contentHash": "6KP/CGB9YymJuhNorm5FS/urQJB40h6t4DIiXN8J1VT/jINZHNgjzcdWRHGYuXGLwO7SCOq5K/OMAnh6oRbeLg==",
         "dependencies": {
-          "System.Diagnostics.EventLog": "10.0.2",
-          "System.Security.Cryptography.ProtectedData": "10.0.2"
+          "System.Diagnostics.EventLog": "10.0.12",
+          "System.Security.Cryptography.ProtectedData": "10.0.12"
         }
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "TJPpTLF5MFPobq09c9BQ5X8QuviQfsKvH0Jbm7MkGylGvfIdRqJQLZDPC5sMRFkk9aZhmgir1NJKekip2NxfaA=="
+        "resolved": "10.0.12",
+        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
       },
       "System.Drawing.Common": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "nCq8jeGD4vWaUjX3nGaDMKYqfFPposw2f4KCFnuY5Rt3NhK6zMZ/c0a52a3TZK/nnkCJfyQMwb+POKwAnZexZw==",
+        "resolved": "10.0.12",
+        "contentHash": "FBUxiucg2gsnyItbpGgyXI5u8FYLcqdLKS1XJkHHTj3RK1c6kpsJr/Y9i4edUNF7LqCYFrHqpHEvpt8/lNBe9w==",
         "dependencies": {
-          "Microsoft.Win32.SystemEvents": "10.0.2"
+          "Microsoft.Win32.SystemEvents": "10.0.12"
         }
       },
       "System.Security.Cryptography.ProtectedData": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "me7W69hkjdu5EzHXCQSXv9OS3uAkMXT26oZuWTaabeoO5BPxSVuRVJ2FSfIW8xyGxBb6mKCE6ZKg7TLk3IzJBQ=="
+        "resolved": "10.0.12",
+        "contentHash": "wO0W8VDMeRJZakRySOmemAnrBZMwEFRlbfBtATxUiLf2I3IhSRnCp1Vt157NWptdE4IJ7eftd5n8q9LtaKHFTQ=="
       },
       "System.Security.Permissions": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "6u42B99m8M38sQJh8njFrffV4TeD6Z5ilyJNgBN49nRvawQC5VedMUk9btFyU7t7+WSbVse7Sxc9ahRm8JXd+A==",
+        "resolved": "10.0.12",
+        "contentHash": "WkhmKe2rEGkqOYOFR1WNM7PGQ6Z/tArb8PMcVi0943KZtQC7IJUkLAQ3Cnx6XPeRb3DUkTDfeZmz+TiJ1R5YPQ==",
         "dependencies": {
-          "System.Windows.Extensions": "10.0.2"
+          "System.Windows.Extensions": "10.0.12"
         }
       },
       "System.Windows.Extensions": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "FJEb7THQLoYQDSIfu656zidYmLFZTBE9gi/IdKpPV9KhGuMZL/xLpLpRNLr7WDt2oLNldae8Jp/1e2H+MPCxGg=="
+        "resolved": "10.0.12",
+        "contentHash": "J+FZruVjELSk2NMe3MQNyCXszIlx1b7qOjUBCSbhabomYIVWpFS5QCnPdxE8K6SVt7Gja7ohpXX1oLLXRAIuzw=="
       },
       "Vanara.Core": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "h395/Y8B3nOiaO+wisRcEOPKO88mqM5XS738L6IX3WjWWT6hH2x5erWZeGHSl8ea9QAqpiCnT9v4wu2dp8DOXg=="
+        "resolved": "5.0.8",
+        "contentHash": "o7BEq3KuLK1J4TVRuaoX7wv0SMoFFwSKglZCpWSYtxPiIYUeQ0JLNyG1/2E4e0J1T5CbzZy56y03S0zO33/9wQ=="
       },
       "Vanara.PInvoke.ComCtl32": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "y/G0lBn6CqvwiokHP+bFcfVYf4lvgITUufnxHN356umwUSPk90yaNMrIKSGM7PRmTxJYgXrUEPGhZVxsdxDadA==",
+        "resolved": "5.0.8",
+        "contentHash": "ZYa2GNmyxttTdNVyQqLqd+JRpHR+03JplbV2hobsoKc797TBLLC0T0JtW5TA/+7pG9knGvxTMwVOXbssfAoBjQ==",
         "dependencies": {
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.User32": "5.0.7"
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.User32": "5.0.8"
         }
       },
       "Vanara.PInvoke.Cryptography": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "4Xmif8z8yuHB9TayJbvY94QQnYWE/BlIOliO+gQ5D2awRqIY3XdWKNPhTPGXYmAgJ9BS2j6q8zbCAfXG4yCD8g==",
+        "resolved": "5.0.8",
+        "contentHash": "BmwKE+cgCG4xRESNzAssRlrzmSOmWq7Wuu2hQ6yDbu5coTii/if9DcMH6HQFWnXkdmeZLKKAvvuT5rwwdPX/7w==",
         "dependencies": {
-          "Vanara.Core": "5.0.7"
+          "Vanara.Core": "5.0.8"
         }
       },
       "Vanara.PInvoke.Gdi32": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "YlktHinJjpmgwNgx+BbpAiOtBRzfijSzmbV62xBSa6GCsQ/aR8EZVLiqij8Qji7xLYXFYevj8gXyUjKhmf2nUg==",
+        "resolved": "5.0.8",
+        "contentHash": "B5zvmPGxV8SPrA3HKWwnpeaeHi3sQhZ/nMAfz1hM7aaDMOL2bll7Aqf7WWdKzn0ZF+2eR13Z3CDWvqniGLU29w==",
         "dependencies": {
-          "Vanara.Core": "5.0.7"
+          "Vanara.Core": "5.0.8"
         }
       },
       "Vanara.PInvoke.Kernel32": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "09AqZGM/qWvsNuqd3I0VVXka+Dx9JJ3IWIGgIl5Z/3y39PU4/1M/l/EAnhO3hafXFpInso2tXnz/cICwgLa5Rw==",
+        "resolved": "5.0.8",
+        "contentHash": "wMbnoPky02qu+ftcy5AEtMTBVg9p3rtdj/uYgtRag0auZ0WPTUVXd5HCAnMDgA4yJs3o6wS/siy1gxl413UV+g==",
         "dependencies": {
-          "Vanara.Core": "5.0.7"
+          "Vanara.Core": "5.0.8"
         }
       },
       "Vanara.PInvoke.Ole": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "ECldMrWJaR9CJl+Gv5yX5OY/3Jd2FH16F+ROY3PhQSFc+EO6xVhyOiVY/bcx5tSRjumViTNUJwcJ4enurdrXDw==",
+        "resolved": "5.0.8",
+        "contentHash": "c2iepqjD4S3nHRSF1mMdxdWAL9AQlq/w/JnlwsV3oJyklu0lf4wNVW+e9TkXZsx+9xuiboAx1ofu2ic0ruDIIw==",
         "dependencies": {
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.Rpc": "5.0.7"
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.Rpc": "5.0.8"
         }
       },
       "Vanara.PInvoke.Rpc": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "a76Stj8grZ1ObHFX7PmxCtLHZhx8pSNmYbZ4z/Qa5zywMwxM+U/BOh/+1II5/FzJtXd/vXfzoNWa9yOEcxdCfw==",
+        "resolved": "5.0.8",
+        "contentHash": "8cgMx9q8TY6riXLY2WM6VQ95Y7u0OhZ+wz8hHySH2uIsZW46WhCTzlNk2t8Z80mq/4r3iO5hF43vEYB47lGWZA==",
         "dependencies": {
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.Security": "5.0.7"
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.Security": "5.0.8"
         }
       },
       "Vanara.PInvoke.SearchApi": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "N00PJEkQTn4MiNEOO4SlH3VWGJWxcutzQJzBd2qQrBgPraWlASOyZBIgoDVt1Km+DEdVYytfeTCayECF6M99kg==",
+        "resolved": "5.0.8",
+        "contentHash": "KdJtVMYs2LsFwn0lPx3dCuN980+WCGKbdN6vjx4KHmQ0L7lnDOoEWbbxJvz2trPo5HSjHS7HvW/CFG+dHRH5sw==",
         "dependencies": {
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.Shell32": "5.0.7"
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.Shell32": "5.0.8"
         }
       },
       "Vanara.PInvoke.Security": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "3D6rnO0tL7xPgPQkIuLC1EZ5IFvvyjYbPf5ITLUJWGMPbU/0h0O18JbtOVOL+rbOXkEazok4CZ4iYKirRVwSQg==",
+        "resolved": "5.0.8",
+        "contentHash": "Rfx4z3hgEOK9bvHmekpYbsXTa0WcJNE1wHKmyaOCdOtuYb9qWW9100lkHYHnLYUh+0oTa6rJSadln/Lw1pnoZg==",
         "dependencies": {
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.Cryptography": "5.0.7",
-          "Vanara.PInvoke.Kernel32": "5.0.7"
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.Cryptography": "5.0.8",
+          "Vanara.PInvoke.Kernel32": "5.0.8"
         }
       },
       "Vanara.PInvoke.Shell32": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "OVLUsX6bs+C00jqn57K/QslonYl8kPMA3rb3La1BHGEFzJ4PGpRPI/f38/y6mvXQYjtH9vYK/G5Zu4Pfo4luFw==",
+        "resolved": "5.0.8",
+        "contentHash": "EJgaXxx05mktd4vmR/1n16Kdy1zs2I4A9y8I1udt42TtQSsUDyEKqqLIp6nLIfDL+hUgR+2M4FFA/RWcVhUnIQ==",
         "dependencies": {
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.ComCtl32": "5.0.7",
-          "Vanara.PInvoke.Ole": "5.0.7",
-          "Vanara.PInvoke.ShlwApi": "5.0.7"
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.ComCtl32": "5.0.8",
+          "Vanara.PInvoke.Ole": "5.0.8",
+          "Vanara.PInvoke.ShlwApi": "5.0.8"
         }
       },
       "Vanara.PInvoke.ShlwApi": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "J1jT+xPTMzabuarUBQC2sqvWFrTFbN28fuZSLNY6PyGsRnANXplU7FiDYEWCYEsQB9nlqKE38VWOBhyjMUwBBQ==",
+        "resolved": "5.0.8",
+        "contentHash": "s35ra/Tn0YQFUhQ7jrLkjL+1lG33KnPo6H/iQKks3DTfoMdcdqj7Wg1VXrwSuhB44lS5VXS+vyNUlXL02CxAzg==",
         "dependencies": {
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.Kernel32": "5.0.7"
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.Kernel32": "5.0.8"
         }
       },
       "Vanara.Windows.Extensions": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "kIE0OowUip/UpjVRCLBB7S1cF2upKoSK8uYkE/LchtyvBLg8Sp42QGsoDDEtmdj1oTZag0gscNUTeEdqbwnQBw==",
+        "resolved": "5.0.8",
+        "contentHash": "yBF24ltcglfZXKaBYfzROFO0i6yaNCgkCixBoYDTIxLRbgc6f4lMoAv6Hhn5KnZ3pc7HWmo7lmJULP7RWgEYhw==",
         "dependencies": {
-          "System.Drawing.Common": "10.0.2",
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.User32": "5.0.7"
+          "System.Drawing.Common": "10.0.12",
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.User32": "5.0.8"
         }
       },
       "Vanara.Windows.Shell.Common": {
         "type": "Transitive",
-        "resolved": "5.0.7",
-        "contentHash": "1N1CU2mlE11tiBDIj7Rasj47hYN5jeMvwhuiVf5sRP10BsQEdFlMPWcvtTY5P2A7xKPVu5JTBjoxIUODWLMcVw==",
+        "resolved": "5.0.8",
+        "contentHash": "jHsyQPHRUIy1wuEwH6mPna7L2Wtu3K9xBcXO2FNmGxoxOQHLYWR+DdgfV5XksVk4YwkAhIlXRfMmNf/uyPepNg==",
         "dependencies": {
-          "System.Configuration.ConfigurationManager": "10.0.2",
-          "System.Drawing.Common": "10.0.2",
-          "System.Security.Permissions": "10.0.2",
-          "Vanara.Core": "5.0.7",
-          "Vanara.PInvoke.SearchApi": "5.0.7",
-          "Vanara.Windows.Extensions": "5.0.7"
+          "System.Configuration.ConfigurationManager": "10.0.12",
+          "System.Drawing.Common": "10.0.12",
+          "System.Security.Permissions": "10.0.12",
+          "Vanara.Core": "5.0.8",
+          "Vanara.PInvoke.SearchApi": "5.0.8",
+          "Vanara.Windows.Extensions": "5.0.8"
         }
       },
       "desktopboxes.core": {
@@ -196,18 +196,18 @@
     "net8.0-windows7.0/win-x64": {
       "Microsoft.Win32.SystemEvents": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "1G4BdeFwc8E95MpwtR7pO4rEh2YCG/o5gqcOszdQRGrWX1ayHTZtho3xPuYZTbBxKb/3kQHjL3b4nQeNGvbM9g=="
+        "resolved": "10.0.12",
+        "contentHash": "kdj5cqOwgZCMltEhQ4+WVUoFkMHG08EJfy1MDyS9H+FBg66vTTFyX8YcNl8IQh5wRQv79P+iduQgDGY8ucBR+w=="
       },
       "System.Diagnostics.EventLog": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "TJPpTLF5MFPobq09c9BQ5X8QuviQfsKvH0Jbm7MkGylGvfIdRqJQLZDPC5sMRFkk9aZhmgir1NJKekip2NxfaA=="
+        "resolved": "10.0.12",
+        "contentHash": "sOZM+VyRj1pg/ItlHsvrSbjws6oGqZveTzTNBGZ9ziwRDyKsOF3ub6vhvOdxotCIqtlnyHAIwP5sLNvgiZC+pQ=="
       },
       "System.Windows.Extensions": {
         "type": "Transitive",
-        "resolved": "10.0.2",
-        "contentHash": "FJEb7THQLoYQDSIfu656zidYmLFZTBE9gi/IdKpPV9KhGuMZL/xLpLpRNLr7WDt2oLNldae8Jp/1e2H+MPCxGg=="
+        "resolved": "10.0.12",
+        "contentHash": "J+FZruVjELSk2NMe3MQNyCXszIlx1b7qOjUBCSbhabomYIVWpFS5QCnPdxE8K6SVt7Gja7ohpXX1oLLXRAIuzw=="
       }
     }
   }
